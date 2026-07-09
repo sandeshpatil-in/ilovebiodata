@@ -151,10 +151,11 @@ export async function POST(request, { params }) {
     const user = await getCurrentUser()
     if (!user) return json({ error: 'Unauthorized' }, { status: 401 })
     try {
+      const shortUid = String(user._id).replace(/-/g, '').slice(0, 12)
       const order = await rz().orders.create({
         amount: PREMIUM_AMOUNT,
         currency: 'INR',
-        receipt: `premium_${user._id}_${Date.now()}`,
+        receipt: `p_${shortUid}_${Date.now()}`.slice(0, 40),
         notes: { userId: String(user._id), plan: 'lifetime_premium_templates' },
       })
       const db = await getDb()

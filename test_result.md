@@ -182,7 +182,7 @@ backend:
 
   - task: "Razorpay create-order - POST /api/razorpay/create-order"
     implemented: true
-    working: false
+    working: true
     file: "app/api/[[...path]]/route.js"
     stuck_count: 0
     priority: "high"
@@ -194,6 +194,9 @@ backend:
       - working: false
         agent: "testing"
         comment: "✗ FAIL - Unauthenticated request correctly returns 401. However, authenticated request returns 500 error. Razorpay API rejects the request with 'BAD_REQUEST_ERROR: receipt: the length must be no more than 40.' The receipt field is constructed as `premium_${user._id}_${Date.now()}` which exceeds 40 characters. BUG: Receipt field needs to be shortened to max 40 chars (line 157 in route.js)."
+      - working: true
+        agent: "testing"
+        comment: "✓ PASS - Receipt length fix verified. Authenticated request now returns 200 with {orderId, amount:9900, currency:'INR', keyId}. Payment document successfully created in db.payments with status:'created'. Receipt format `p_${shortUid}_${Date.now()}`.slice(0, 40) working correctly (shortUid = user._id with dashes removed, first 12 chars). Tested with user test-user-uuid-abc, order created successfully (order_TBWEw04N3eiapO)."
 
   - task: "Razorpay verify - POST /api/razorpay/verify"
     implemented: true
@@ -241,12 +244,11 @@ frontend:
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 2
+  test_sequence: 3
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "Razorpay create-order - POST /api/razorpay/create-order"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -289,3 +291,17 @@ agent_communication:
       - Suggested fix: Use shorter format like `p_${Date.now()}` or hash the user ID
 
       All other endpoints working correctly with proper auth and validation.
+
+  - agent: "testing"
+    message: |
+      Razorpay create-order endpoint retested after receipt length fix.
+
+      ✓ TEST PASSED:
+      - Receipt format fix verified: `p_${shortUid}_${Date.now()}`.slice(0, 40)
+      - shortUid = user._id (UUID with dashes removed).slice(0, 12)
+      - Authenticated request returns 200 with all required fields
+      - Response: {orderId, amount:9900, currency:"INR", keyId}
+      - Payment document created in db.payments with status:"created"
+      - Test order created successfully: order_TBWEw04N3eiapO
+
+      All backend endpoints now working correctly. Ready for summary.
