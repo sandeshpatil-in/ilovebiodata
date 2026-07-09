@@ -1,0 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --gold: #B8860B;
+  --gold-light: #E8D8A8;
+  --gold-soft: #F6EFD4;
+  --maroon: #7A1F1F;
+  --maroon-light: #A83232;
+  --ink: #333333;
+  --paper: #FFFFFF;
+  --soft-gray: #F7F5F0;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Noto Sans Devanagari', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+}
+
+.font-marathi { font-family: 'Noto Sans Devanagari', sans-serif; }
+.font-tiro { font-family: 'Tiro Devanagari Marathi', 'Noto Sans Devanagari', serif; }
+.font-baloo { font-family: 'Baloo 2', 'Noto Sans Devanagari', sans-serif; }
+
+/* Golden gradient headings */
+.text-gold-gradient {
+  background: linear-gradient(180deg, #C9A24A 0%, #8A6612 60%, #6B4E0A 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Biodata paper */
+.biodata-paper {
+  background: #FFFFFF;
+  color: #2b2b2b;
+  position: relative;
+  overflow: hidden;
+}
+.biodata-paper.template-t1 { background: #FFFDF7; }
+.biodata-paper.template-t2 { background: #FFF9F7; }
+.biodata-paper.template-t3 { background: #FFFFFF; }
+
+/* Row style used inside biodata */
+.bio-row { display: grid; grid-template-columns: 130px 12px 1fr; column-gap: 8px; padding: 3px 0; align-items: baseline; }
+.bio-row .lbl { color: #7A1F1F; font-weight: 600; }
+.bio-row .col { color: #7A1F1F; font-weight: 700; text-align: center; }
+.bio-row .val { color: #2b2b2b; font-weight: 500; word-break: break-word; }
+
+@media (max-width: 480px) {
+  .bio-row { grid-template-columns: 96px 10px 1fr; }
+}
+
+.section-title {
+  color: var(--gold);
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 0.5px;
+  padding: 8px 0 6px;
+  font-size: 20px;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #E8D8A8; border-radius: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* Utility: hide scrollbar on mobile bottom sheet handle */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 20%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 20%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 20%;
+    --primary: 40 71% 38%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 60% 30%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 45 55% 95%;
+    --muted-foreground: 0 0% 40%;
+    --accent: 45 60% 85%;
+    --accent-foreground: 0 0% 15%;
+    --destructive: 0 84% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 45 45% 78%;
+    --input: 45 45% 85%;
+    --ring: 40 71% 38%;
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground; }
+}
+
+/* Print / PDF friendly */
+@media print {
+  .no-print { display: none !important; }
+}
+
+/* Framer-like fade utility */
+.fade-in { animation: fadeIn 0.35s ease-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px);} to { opacity: 1; transform: translateY(0);} }
