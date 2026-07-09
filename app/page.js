@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -7,10 +7,11 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Card } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuLabel } from '@/components/ui/dropdown-menu'
 import { toast, Toaster } from 'sonner'
-import { ChevronLeft, ChevronRight, Download, Eye, Heart, Plus, Sparkles, Trash2, Upload, X, Check, Camera } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Download, Eye, Heart, Plus, Sparkles, Trash2, Upload, X, Check, Camera, LogOut, LayoutDashboard, Save, Lock, Crown, Edit, FileText, Loader2, LogIn } from 'lucide-react'
 import BiodataView from '@/components/biodata/BiodataView'
 import GodIcon from '@/components/biodata/GodIcon'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -28,7 +29,6 @@ const GODS = [
   { key: 'ram', name: 'श्री राम', temple: 'राम' },
   { key: 'krishna', name: 'श्री कृष्ण', temple: 'कृष्ण' },
 ]
-
 const RASHIS = ['मेष','वृषभ','मिथुन','कर्क','सिंह','कन्या','तूळ','वृश्चिक','धनु','मकर','कुंभ','मीन']
 const NAKSHATRAS = ['अश्विनी','भरणी','कृत्तिका','रोहिणी','मृग','आर्द्रा','पुनर्वसू','पुष्य','आश्लेषा','मघा','पूर्वा फाल्गुनी','उत्तरा फाल्गुनी','हस्त','चित्रा','स्वाती','विशाखा','अनुराधा','ज्येष्ठा','मूळ','पूर्वाषाढा','उत्तराषाढा','श्रवण','धनिष्ठा','शततारका','पूर्वा भाद्रपदा','उत्तरा भाद्रपदा','रेवती']
 const GANS = ['देव','मनुष्य','राक्षस']
@@ -48,6 +48,9 @@ const STEPS = [
   { key: 'relatives', label: 'नातेवाईक' },
   { key: 'contact', label: 'संपर्क' },
 ]
+
+const PREMIUM_TEMPLATES = ['t2', 't3']
+const PREMIUM_PRICE = process.env.NEXT_PUBLIC_PREMIUM_PRICE_INR || '99'
 
 const emptyData = () => ({
   god: { key: 'ganpati', name: 'श्री गणेश', temple: '', shlok: '', customImage: '' },
@@ -103,8 +106,70 @@ const samplePreviewData = () => ({
   relatives: { mama: ['श्री. अशोक आनंदा पाटील','श्री. संजय आनंदा पाटील'], kaka: [], kaku:[], mami:[], atya:['श्री. भिमराव रंगराव पाटील'], mavshi:[], chulte:['श्री. कुमार हरी पाटील'], ajoba:[], aji:[] },
 })
 
+// ---------- Auth helper ----------
+const beginGoogleLogin = () => {
+  const redirect = window.location.origin + '/'
+  const url = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirect)}`
+  window.location.href = url
+}
+
+const api = {
+  me: () => fetch('/api/auth/me', { credentials: 'include' }).then(r => r.json()),
+  session: (session_id) => fetch('/api/auth/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id }), credentials: 'include' }).then(r => r.json()),
+  logout: () => fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).then(r => r.json()),
+  listBiodatas: () => fetch('/api/biodatas', { credentials: 'include' }).then(r => r.json()),
+  getBiodata: (id) => fetch('/api/biodatas/' + id, { credentials: 'include' }).then(r => r.json()),
+  saveBiodata: (payload) => fetch('/api/biodatas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), credentials: 'include' }).then(r => r.json()),
+  deleteBiodata: (id) => fetch('/api/biodatas/' + id, { method: 'DELETE', credentials: 'include' }).then(r => r.json()),
+  createOrder: () => fetch('/api/razorpay/create-order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}), credentials: 'include' }).then(r => r.json()),
+  verifyOrder: (payload) => fetch('/api/razorpay/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), credentials: 'include' }).then(r => r.json()),
+}
+
+const loadRazorpayScript = () => new Promise((resolve) => {
+  if (typeof window === 'undefined') return resolve(false)
+  if (window.Razorpay) return resolve(true)
+  const s = document.createElement('script')
+  s.src = 'https://checkout.razorpay.com/v1/checkout.js'
+  s.onload = () => resolve(true)
+  s.onerror = () => resolve(false)
+  document.body.appendChild(s)
+})
+
+// ---------- User avatar + login button ----------
+const UserMenu = ({ user, onLogout, onDashboard, onUnlock }) => {
+  if (!user) {
+    return (
+      <Button onClick={beginGoogleLogin} variant="outline" className="rounded-full border-[#E8D8A8] text-[#7A1F1F] hover:bg-[#FDF7E5] h-9">
+        <LogIn className="w-4 h-4 mr-1"/> लॉगिन
+      </Button>
+    )
+  }
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="flex items-center gap-2 rounded-full border border-[#E8D8A8] px-2 py-1 bg-white hover:bg-[#FDF7E5]">
+          {user.picture ? (
+            <img src={user.picture} alt="" className="w-7 h-7 rounded-full object-cover" />
+          ) : (
+            <div className="w-7 h-7 rounded-full bg-[#B8860B] text-white flex items-center justify-center text-xs font-bold">{(user.name||user.email||'U')[0]?.toUpperCase()}</div>
+          )}
+          <span className="hidden sm:inline text-sm font-semibold text-[#333] max-w-[110px] truncate">{user.name || user.email}</span>
+          {user.isPremium && <Crown className="w-4 h-4 text-[#B8860B]" />}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel className="text-xs text-neutral-500">{user.email}</DropdownMenuLabel>
+        <DropdownMenuItem onClick={onDashboard} className="cursor-pointer"><LayoutDashboard className="w-4 h-4 mr-2"/> माझे बायोडाटे</DropdownMenuItem>
+        {!user.isPremium && <DropdownMenuItem onClick={onUnlock} className="cursor-pointer text-[#B8860B] font-semibold"><Crown className="w-4 h-4 mr-2"/> प्रीमियम अनलॉक</DropdownMenuItem>}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={onLogout} className="cursor-pointer text-red-600"><LogOut className="w-4 h-4 mr-2"/> लॉगआउट</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 // ---------- Landing ----------
-const Landing = ({ onStart, onGoTemplates }) => (
+const Landing = ({ onStart, onGoTemplates, user, onLogout, onDashboard, onUnlock }) => (
   <div className="min-h-screen bg-white font-marathi">
     <nav className="sticky top-0 z-30 bg-white/85 backdrop-blur border-b border-[#E8D8A8]">
       <div className="mx-auto max-w-6xl px-4 h-14 flex items-center justify-between">
@@ -113,8 +178,9 @@ const Landing = ({ onStart, onGoTemplates }) => (
           <div className="font-baloo font-bold text-lg text-gold-gradient">ILoveBiodata</div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" onClick={onGoTemplates} className="text-[#7A1F1F] font-semibold">टेम्पलेट्स</Button>
-          <Button onClick={onStart} className="bg-[#B8860B] hover:bg-[#9c7009] text-white rounded-full px-4">सुरू करा</Button>
+          <Button variant="ghost" onClick={onGoTemplates} className="text-[#7A1F1F] font-semibold hidden sm:inline-flex">टेम्पलेट्स</Button>
+          <Button onClick={onStart} className="bg-[#B8860B] hover:bg-[#9c7009] text-white rounded-full px-4 hidden sm:inline-flex">सुरू करा</Button>
+          <UserMenu user={user} onLogout={onLogout} onDashboard={onDashboard} onUnlock={onUnlock} />
         </div>
       </div>
     </nav>
@@ -156,17 +222,17 @@ const Landing = ({ onStart, onGoTemplates }) => (
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {[
-          { key: 't1', title: 'पारंपरिक सुवर्ण', sub: 'Traditional Gold Border' },
-          { key: 't2', title: 'रॉयल मरून', sub: 'Royal Maroon' },
-          { key: 't3', title: 'मिनिमल मॉडर्न', sub: 'Minimal Modern' },
+          { key: 't1', title: 'पारंपरिक सुवर्ण', sub: 'Traditional Gold Border', premium: false },
+          { key: 't2', title: 'रॉयल मरून', sub: 'Royal Maroon', premium: true },
+          { key: 't3', title: 'मिनिमल मॉडर्न', sub: 'Minimal Modern', premium: true },
         ].map((t) => (
-          <Card key={t.key} className="p-0 overflow-hidden border-[#E8D8A8] bg-white cursor-pointer hover:shadow-lg transition-shadow" onClick={onStart}>
+          <Card key={t.key} className="p-0 overflow-hidden border-[#E8D8A8] bg-white cursor-pointer hover:shadow-lg transition-shadow relative" onClick={onStart}>
             <div className="p-3 border-b border-[#E8D8A8] flex items-center justify-between">
               <div>
-                <div className="font-semibold text-[#2b2b2b]">{t.title}</div>
+                <div className="font-semibold text-[#2b2b2b] flex items-center gap-1">{t.title} {t.premium && <Crown className="w-4 h-4 text-[#B8860B]" />}</div>
                 <div className="text-xs text-neutral-500">{t.sub}</div>
               </div>
-              <span className="text-xs px-2 py-1 rounded-full bg-[#FDF7E5] text-[#7A1F1F]">प्रीमियम</span>
+              <span className={cx("text-xs px-2 py-1 rounded-full", t.premium ? "bg-[#7A1F1F] text-white" : "bg-[#FDF7E5] text-[#7A1F1F]")}>{t.premium ? 'प्रीमियम' : 'मोफत'}</span>
             </div>
             <div className="p-3 bg-[#FBF7EA]">
               <div className="scale-[0.95] origin-top">
@@ -230,13 +296,9 @@ const StepGod = ({ data, update }) => {
       <Field label="देव निवडा">
         <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
           {GODS.map((g) => (
-            <button
-              key={g.key}
-              type="button"
-              onClick={() => setGod({ key: g.key, name: g.name, temple: g.temple, customImage: '' })}
+            <button key={g.key} type="button" onClick={() => setGod({ key: g.key, name: g.name, temple: g.temple, customImage: '' })}
               className={cx('flex flex-col items-center gap-1 p-2 rounded-xl border transition',
-                data.god.key === g.key ? 'border-[#B8860B] bg-[#FFFDF0] shadow-sm' : 'border-[#E8D8A8] bg-white hover:bg-[#FFFDF5]')}
-            >
+                data.god.key === g.key ? 'border-[#B8860B] bg-[#FFFDF0] shadow-sm' : 'border-[#E8D8A8] bg-white hover:bg-[#FFFDF5]')}>
               <GodIcon name={g.name.replace('श्री ','')} size={48} custom={data.god.key===g.key ? data.god.customImage : ''} />
               <div className="text-xs font-medium text-[#333]">{g.name}</div>
             </button>
@@ -250,8 +312,7 @@ const StepGod = ({ data, update }) => {
           <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
             const f = e.target.files?.[0]; if (!f) return
             const url = await compressImageToDataURL(f, 400, 0.9)
-            setGod({ customImage: url })
-            toast.success('देव प्रतिमा जोडली')
+            setGod({ customImage: url }); toast.success('देव प्रतिमा जोडली')
           }} />
           {data.god.customImage && <img src={data.god.customImage} className="ml-auto w-10 h-10 rounded object-cover" alt="" />}
         </label>
@@ -286,7 +347,6 @@ const StepBasic = ({ data, update }) => {
         <Field label="जन्म वेळ"><RoundInput value={data.birthTime} onChange={(e)=>update({birthTime:e.target.value})} placeholder="उदा. सकाळी ०६:३०" /></Field>
       </div>
       <Field label="जन्म स्थळ"><RoundInput value={data.birthPlace} onChange={(e)=>update({birthPlace:e.target.value})} placeholder="उदा. पुणे" /></Field>
-
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Field label="राशी"><RoundSelect value={data.rashi} onValueChange={(v)=>update({rashi:v})} placeholder="निवडा" options={RASHIS} /></Field>
         <Field label="नक्षत्र"><RoundSelect value={data.nakshatra} onValueChange={(v)=>update({nakshatra:v})} placeholder="निवडा" options={NAKSHATRAS} /></Field>
@@ -313,7 +373,6 @@ const StepBasic = ({ data, update }) => {
         <Field label="अपंगत्व"><RoundInput value={data.disability} onChange={(e)=>update({disability:e.target.value})} placeholder="नाही" /></Field>
       </div>
       <Field label="छंद"><RoundInput value={data.hobbies} onChange={(e)=>update({hobbies:e.target.value})} placeholder="वाचन, प्रवास" /></Field>
-
       <Field label="फोटो अपलोड">
         <label className="flex items-center gap-3 p-3 rounded-xl border border-dashed border-[#E8D8A8] bg-[#FFFDF5] cursor-pointer">
           <Camera className="w-4 h-4 text-[#B8860B]" />
@@ -370,7 +429,6 @@ const StepFamily = ({ data, update }) => {
         <Field label="आईचे नाव"><RoundInput value={data.motherName} onChange={(e)=>update({motherName:e.target.value})} placeholder="सौ. ..." /></Field>
         <Field label="आईचा व्यवसाय"><RoundInput value={data.motherOccupation} onChange={(e)=>update({motherOccupation:e.target.value})} placeholder="गृहिणी" /></Field>
       </div>
-
       <div className="rounded-2xl border border-[#E8D8A8] p-3 bg-[#FFFDF5]">
         <div className="flex items-center justify-between mb-2">
           <div className="font-semibold text-[#7A1F1F]">भाऊ</div>
@@ -386,7 +444,6 @@ const StepFamily = ({ data, update }) => {
           </div>
         ))}
       </div>
-
       <div className="rounded-2xl border border-[#E8D8A8] p-3 bg-[#FFFDF5]">
         <div className="flex items-center justify-between mb-2">
           <div className="font-semibold text-[#7A1F1F]">बहीण</div>
@@ -402,7 +459,6 @@ const StepFamily = ({ data, update }) => {
           </div>
         ))}
       </div>
-
       <Field label="कुटुंबातील सदस्य संख्या"><RoundInput value={data.familyCount} onChange={(e)=>update({familyCount:e.target.value})} placeholder="उदा. ६" /></Field>
     </div>
   )
@@ -412,18 +468,10 @@ const RELATIVE_LABELS = [
   ['mama', 'मामा'], ['mami', 'मामी'], ['kaka', 'काका'], ['kaku', 'काकू'],
   ['atya', 'आत्या'], ['mavshi', 'मावशी'], ['chulte', 'चुलते'], ['ajoba', 'आजोबा'], ['aji', 'आजी'],
 ]
-
 const StepRelatives = ({ data, update }) => {
-  const setRel = (key, i, val) => {
-    const arr = [...(data.relatives?.[key] || [''])]
-    arr[i] = val
-    update({ relatives: { ...(data.relatives||{}), [key]: arr } })
-  }
+  const setRel = (key, i, val) => { const arr = [...(data.relatives?.[key] || [''])]; arr[i] = val; update({ relatives: { ...(data.relatives||{}), [key]: arr } }) }
   const addRel = (key) => update({ relatives: { ...(data.relatives||{}), [key]: [...(data.relatives?.[key]||[]), ''] } })
-  const delRel = (key, i) => {
-    const arr = [...(data.relatives?.[key] || [])]; arr.splice(i,1)
-    update({ relatives: { ...(data.relatives||{}), [key]: arr.length ? arr : [''] } })
-  }
+  const delRel = (key, i) => { const arr = [...(data.relatives?.[key] || [])]; arr.splice(i,1); update({ relatives: { ...(data.relatives||{}), [key]: arr.length ? arr : [''] } }) }
   return (
     <div className="space-y-3">
       {RELATIVE_LABELS.map(([key, label]) => (
@@ -487,24 +535,121 @@ const CustomFieldDialog = ({ open, onOpenChange, onAdd }) => {
   )
 }
 
+// ---------- Premium unlock modal ----------
+const PremiumModal = ({ open, onOpenChange, user, onUnlocked, onNeedLogin }) => {
+  const [loading, setLoading] = useState(false)
+  const pay = async () => {
+    if (!user) { onNeedLogin?.(); return }
+    setLoading(true)
+    try {
+      const ok = await loadRazorpayScript()
+      if (!ok) throw new Error('Razorpay लोड होऊ शकले नाही')
+      const order = await api.createOrder()
+      if (order.error) throw new Error(order.error)
+      const opts = {
+        key: order.keyId,
+        amount: order.amount,
+        currency: order.currency,
+        name: 'ILoveBiodata Premium',
+        description: 'Lifetime Premium Templates Access',
+        order_id: order.orderId,
+        prefill: { name: order.userName || user.name || '', email: order.userEmail || user.email || '' },
+        theme: { color: '#B8860B' },
+        handler: async (response) => {
+          try {
+            const v = await api.verifyOrder({
+              orderId: order.orderId,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            })
+            if (v.ok) {
+              toast.success('प्रीमियम अनलॉक झाले! 🎉')
+              onUnlocked?.()
+              onOpenChange(false)
+            } else {
+              toast.error(v.error || 'Payment verification अयशस्वी')
+            }
+          } catch (e) { toast.error('Verification मध्ये समस्या') }
+        },
+        modal: { ondismiss: () => setLoading(false) }
+      }
+      const rzp = new window.Razorpay(opts)
+      rzp.open()
+    } catch (e) {
+      toast.error(e.message || 'Payment सुरू करण्यात अडचण')
+    } finally { setLoading(false) }
+  }
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-[#7A1F1F] flex items-center gap-2"><Crown className="w-5 h-5 text-[#B8860B]"/> प्रीमियम अनलॉक</DialogTitle>
+          <DialogDescription>सर्व प्रीमियम टेम्पलेट्स आयुष्यभरासाठी अनलॉक करा</DialogDescription>
+        </DialogHeader>
+        <div className="rounded-2xl border border-[#E8D8A8] bg-[#FFFDF5] p-4">
+          <div className="flex items-baseline gap-2">
+            <div className="text-4xl font-extrabold text-gold-gradient">₹{PREMIUM_PRICE}</div>
+            <div className="text-neutral-500 text-sm line-through">₹299</div>
+            <span className="ml-auto text-xs px-2 py-1 rounded-full bg-[#7A1F1F] text-white">Limited</span>
+          </div>
+          <ul className="mt-3 space-y-2 text-sm text-[#333]">
+            <li className="flex items-center gap-2"><Check className="w-4 h-4 text-[#B8860B]"/> रॉयल मरून टेम्पलेट</li>
+            <li className="flex items-center gap-2"><Check className="w-4 h-4 text-[#B8860B]"/> मिनिमल मॉडर्न टेम्पलेट</li>
+            <li className="flex items-center gap-2"><Check className="w-4 h-4 text-[#B8860B]"/> HD PDF डाउनलोड</li>
+            <li className="flex items-center gap-2"><Check className="w-4 h-4 text-[#B8860B]"/> Cloud Save + Dashboard</li>
+            <li className="flex items-center gap-2"><Check className="w-4 h-4 text-[#B8860B]"/> आयुष्यभर वापर, एकदा pay</li>
+          </ul>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={()=>onOpenChange(false)} className="rounded-full">नंतर</Button>
+          <Button onClick={pay} disabled={loading} className="rounded-full bg-[#B8860B] hover:bg-[#9c7009] text-white">
+            {loading ? <><Loader2 className="w-4 h-4 mr-1 animate-spin"/> लोड होत आहे...</> : <><Crown className="w-4 h-4 mr-1"/> ₹{PREMIUM_PRICE} भरा</>}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ---------- Login required modal ----------
+const LoginRequiredModal = ({ open, onOpenChange, reason }) => (
+  <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent className="max-w-sm">
+      <DialogHeader>
+        <DialogTitle className="text-[#7A1F1F]">लॉगिन आवश्यक</DialogTitle>
+        <DialogDescription>{reason || 'हे वैशिष्ट्य वापरण्यासाठी कृपया लॉगिन करा.'}</DialogDescription>
+      </DialogHeader>
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={()=>onOpenChange(false)} className="rounded-full">रद्द करा</Button>
+        <Button onClick={beginGoogleLogin} className="rounded-full bg-[#B8860B] hover:bg-[#9c7009] text-white"><LogIn className="w-4 h-4 mr-1"/> Google ने लॉगिन</Button>
+      </div>
+    </DialogContent>
+  </Dialog>
+)
+
 // ---------- Builder ----------
-const Builder = ({ onBack }) => {
-  const [data, setData] = useState(emptyData())
+const Builder = ({ onBack, user, initialData, initialId, initialTemplate, onSavedCloud, onNeedLogin, onOpenPremium, onOpenDashboard }) => {
+  const [data, setData] = useState(initialData || emptyData())
+  const [cloudId, setCloudId] = useState(initialId || null)
   const [step, setStep] = useState(0)
-  const [template, setTemplate] = useState('t1')
+  const [template, setTemplate] = useState(initialTemplate || 't1')
   const [previewOpen, setPreviewOpen] = useState(false)
   const [customOpen, setCustomOpen] = useState(false)
   const [showFinal, setShowFinal] = useState(false)
   const [downloading, setDownloading] = useState(false)
+  const [savingCloud, setSavingCloud] = useState(false)
   const bioRef = useRef(null)
 
   useEffect(() => {
+    if (initialData) return // came from dashboard - don't overwrite
     try {
       const raw = localStorage.getItem('ilb_data')
       if (raw) setData({ ...emptyData(), ...JSON.parse(raw) })
       const t = localStorage.getItem('ilb_template'); if (t) setTemplate(t)
     } catch {}
-  }, [])
+  }, [initialData])
+
   useEffect(() => {
     const t = setTimeout(() => { try { localStorage.setItem('ilb_data', JSON.stringify(data)) } catch {} }, 400)
     return () => clearTimeout(t)
@@ -519,14 +664,22 @@ const Builder = ({ onBack }) => {
   const next = () => setStep((s) => Math.min(STEPS.length - 1, s + 1))
   const prev = () => setStep((s) => Math.max(0, s - 1))
 
+  const chooseTemplate = (t) => {
+    if (PREMIUM_TEMPLATES.includes(t) && !user?.isPremium) {
+      onOpenPremium?.()
+      return
+    }
+    setTemplate(t)
+  }
+
   const handleDownload = async () => {
+    if (PREMIUM_TEMPLATES.includes(template) && !user?.isPremium) { onOpenPremium?.(); return }
     try {
       setDownloading(true)
       const html2canvas = (await import('html2canvas')).default
       const { jsPDF } = await import('jspdf')
       const node = bioRef.current
       if (!node) return
-      // Ensure fonts are loaded
       if (document.fonts?.ready) { try { await document.fonts.ready } catch {} }
       const canvas = await html2canvas(node, { scale: 2, useCORS: true, backgroundColor: '#FFFFFF', logging: false })
       const imgData = canvas.toDataURL('image/jpeg', 0.95)
@@ -538,8 +691,7 @@ const Builder = ({ onBack }) => {
       if (imgH <= pdfH) {
         pdf.addImage(imgData, 'JPEG', 0, 0, imgW, imgH)
       } else {
-        let heightLeft = imgH
-        let position = 0
+        let heightLeft = imgH; let position = 0
         pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH)
         heightLeft -= pdfH
         while (heightLeft > 0) {
@@ -553,14 +705,29 @@ const Builder = ({ onBack }) => {
       pdf.save(`${nameForFile}_biodata.pdf`)
       toast.success('PDF डाउनलोड झाला')
     } catch (e) {
-      console.error(e)
-      toast.error('PDF तयार करताना अडचण आली')
+      console.error(e); toast.error('PDF तयार करताना अडचण आली')
     } finally { setDownloading(false) }
+  }
+
+  const handleSaveCloud = async () => {
+    if (!user) { onNeedLogin?.('क्लाउडवर सेव्ह करण्यासाठी लॉगिन आवश्यक आहे.'); return }
+    setSavingCloud(true)
+    try {
+      const res = await api.saveBiodata({ id: cloudId, data, template })
+      if (res.ok) {
+        setCloudId(res.id)
+        toast.success('क्लाउडवर सेव्ह झाले ☁️')
+        onSavedCloud?.()
+      } else {
+        toast.error(res.error || 'सेव्ह करता आले नाही')
+      }
+    } catch (e) { toast.error('सर्व्हर त्रुटी') }
+    finally { setSavingCloud(false) }
   }
 
   const clearData = () => {
     if (typeof window !== 'undefined' && !window.confirm('सर्व माहिती हटवायची?')) return
-    setData(emptyData()); setStep(0); toast.success('रीसेट झाले')
+    setData(emptyData()); setStep(0); setCloudId(null); toast.success('रीसेट झाले')
   }
 
   const currentStep = STEPS[step].key
@@ -576,6 +743,16 @@ const Builder = ({ onBack }) => {
     }
   }, [currentStep, data])
 
+  const TemplateChips = ({ onPick }) => (
+    <div className="flex gap-1">
+      {[{k:'t1', label:'सुवर्ण'}, {k:'t2', label:'मरून', prem:true}, {k:'t3', label:'मिनिमल', prem:true}].map(t=>(
+        <button key={t.k} onClick={()=>onPick(t.k)} className={cx('px-2 py-1 text-xs rounded-full border flex items-center gap-1', template===t.k?'border-[#B8860B] bg-[#FFFDF0] text-[#7A1F1F]':'border-[#E8D8A8] text-neutral-600 bg-white')}>
+          {t.label}{t.prem && !user?.isPremium && <Lock className="w-3 h-3"/>}
+        </button>
+      ))}
+    </div>
+  )
+
   return (
     <div className="min-h-screen bg-[#FBF7EA] font-marathi">
       <div className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-[#E8D8A8]">
@@ -585,18 +762,17 @@ const Builder = ({ onBack }) => {
             <div className="text-xs text-neutral-500">पायरी {step+1}/{STEPS.length}</div>
             <div className="font-semibold text-[#333] leading-tight truncate">{STEPS[step].label}</div>
           </div>
+          <Button variant="outline" size="sm" onClick={handleSaveCloud} disabled={savingCloud} className="rounded-full border-[#E8D8A8] text-[#7A1F1F] hidden md:inline-flex">
+            {savingCloud ? <Loader2 className="w-4 h-4 mr-1 animate-spin"/> : <Save className="w-4 h-4 mr-1"/>} सेव्ह
+          </Button>
           <Sheet open={previewOpen} onOpenChange={setPreviewOpen}>
             <SheetTrigger asChild>
               <Button variant="outline" size="sm" className="lg:hidden rounded-full border-[#E8D8A8] text-[#7A1F1F]"><Eye className="w-4 h-4 mr-1"/> प्रीव्ह्यू</Button>
             </SheetTrigger>
             <SheetContent side="bottom" className="h-[85vh] p-0 bg-[#FBF7EA]">
-              <div className="p-3 border-b border-[#E8D8A8] flex items-center justify-between bg-white">
+              <div className="p-3 border-b border-[#E8D8A8] flex items-center justify-between bg-white gap-2">
                 <div className="font-semibold text-[#7A1F1F]">लाईव्ह प्रीव्ह्यू</div>
-                <div className="flex gap-1">
-                  {['t1','t2','t3'].map(t=>(
-                    <button key={t} onClick={()=>setTemplate(t)} className={cx('px-2 py-1 text-xs rounded-full border', template===t?'border-[#B8860B] bg-[#FFFDF0] text-[#7A1F1F]':'border-[#E8D8A8] text-neutral-600')}>{t==='t1'?'सुवर्ण':t==='t2'?'मरून':'मिनिमल'}</button>
-                  ))}
-                </div>
+                <TemplateChips onPick={chooseTemplate} />
               </div>
               <div className="p-3 overflow-y-auto h-[calc(85vh-56px)]">
                 <BiodataView data={data} template={template} />
@@ -633,14 +809,19 @@ const Builder = ({ onBack }) => {
               </div>
             </div>
 
-            <div className="mt-6 flex items-center justify-between gap-2">
+            <div className="mt-6 flex items-center justify-between gap-2 flex-wrap">
               <Button variant="outline" onClick={prev} disabled={step===0} className="rounded-full border-[#E8D8A8] h-11 px-5"><ChevronLeft className="w-4 h-4 mr-1"/> मागे</Button>
-              <Button variant="ghost" onClick={clearData} className="text-neutral-500 hidden sm:inline-flex">रीसेट</Button>
-              {step < STEPS.length - 1 ? (
-                <Button onClick={next} className="rounded-full bg-[#B8860B] hover:bg-[#9c7009] text-white h-11 px-6">पुढे <ChevronRight className="w-4 h-4 ml-1"/></Button>
-              ) : (
-                <Button onClick={()=>setShowFinal(true)} className="rounded-full bg-[#7A1F1F] hover:bg-[#5f1616] text-white h-11 px-6"><Sparkles className="w-4 h-4 mr-1"/> बायोडाटा तयार करा</Button>
-              )}
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" onClick={clearData} className="text-neutral-500 hidden sm:inline-flex">रीसेट</Button>
+                <Button variant="outline" onClick={handleSaveCloud} disabled={savingCloud} className="md:hidden rounded-full border-[#E8D8A8] text-[#7A1F1F]">
+                  {savingCloud ? <Loader2 className="w-4 h-4 mr-1 animate-spin"/> : <Save className="w-4 h-4 mr-1"/>} सेव्ह
+                </Button>
+                {step < STEPS.length - 1 ? (
+                  <Button onClick={next} className="rounded-full bg-[#B8860B] hover:bg-[#9c7009] text-white h-11 px-6">पुढे <ChevronRight className="w-4 h-4 ml-1"/></Button>
+                ) : (
+                  <Button onClick={()=>setShowFinal(true)} className="rounded-full bg-[#7A1F1F] hover:bg-[#5f1616] text-white h-11 px-6"><Sparkles className="w-4 h-4 mr-1"/> बायोडाटा तयार करा</Button>
+                )}
+              </div>
             </div>
           </Card>
         </div>
@@ -649,11 +830,7 @@ const Builder = ({ onBack }) => {
           <div className="sticky top-24">
             <div className="mb-2 flex items-center justify-between">
               <div className="text-sm text-neutral-600">लाईव्ह प्रीव्ह्यू</div>
-              <div className="flex gap-1">
-                {['t1','t2','t3'].map(t=>(
-                  <button key={t} onClick={()=>setTemplate(t)} className={cx('px-2 py-1 text-xs rounded-full border', template===t?'border-[#B8860B] bg-[#FFFDF0] text-[#7A1F1F]':'border-[#E8D8A8] text-neutral-600 bg-white')}>{t==='t1'?'सुवर्ण':t==='t2'?'मरून':'मिनिमल'}</button>
-                ))}
-              </div>
+              <TemplateChips onPick={chooseTemplate} />
             </div>
             <div className="rounded-2xl border border-[#E8D8A8] bg-white shadow-sm overflow-hidden">
               <div className="max-h-[calc(100vh-160px)] overflow-y-auto p-3">
@@ -674,11 +851,10 @@ const Builder = ({ onBack }) => {
               <div className="text-xs text-neutral-500">टेम्पलेट निवडा आणि PDF डाउनलोड करा</div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex gap-1 mr-2">
-                {[{k:'t1', label:'सुवर्ण'}, {k:'t2', label:'मरून'}, {k:'t3', label:'मिनिमल'}].map(t=>(
-                  <button key={t.k} onClick={()=>setTemplate(t.k)} className={cx('px-3 py-1.5 text-xs rounded-full border font-semibold', template===t.k?'border-[#B8860B] bg-[#FFFDF0] text-[#7A1F1F]':'border-[#E8D8A8] text-neutral-600 bg-white')}>{t.label}</button>
-                ))}
-              </div>
+              <TemplateChips onPick={chooseTemplate} />
+              <Button onClick={handleSaveCloud} variant="outline" disabled={savingCloud} className="rounded-full border-[#E8D8A8] text-[#7A1F1F]">
+                {savingCloud ? <Loader2 className="w-4 h-4 mr-1 animate-spin"/> : <Save className="w-4 h-4 mr-1"/>} क्लाउड सेव्ह
+              </Button>
               <Button onClick={handleDownload} disabled={downloading} className="rounded-full bg-[#B8860B] hover:bg-[#9c7009] text-white">
                 <Download className="w-4 h-4 mr-1"/> {downloading? 'तयार होत आहे...' : 'PDF डाउनलोड'}
               </Button>
@@ -697,6 +873,83 @@ const Builder = ({ onBack }) => {
   )
 }
 
+// ---------- Dashboard ----------
+const Dashboard = ({ user, onBack, onEdit, onNew, onLogout, onUnlock }) => {
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const res = await api.listBiodatas()
+    setItems(res.items || [])
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const doDelete = async (id) => {
+    if (!confirm('हा बायोडाटा हटवायचा?')) return
+    const res = await api.deleteBiodata(id)
+    if (res.ok) { toast.success('हटवला'); load() } else { toast.error('अडचण आली') }
+  }
+
+  return (
+    <div className="min-h-screen bg-[#FBF7EA] font-marathi">
+      <nav className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-[#E8D8A8]">
+        <div className="mx-auto max-w-6xl px-4 h-14 flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={onBack} className="text-[#7A1F1F]"><ChevronLeft className="w-5 h-5"/></Button>
+          <div className="flex-1">
+            <div className="font-baloo font-bold text-lg text-gold-gradient">माझे बायोडाटे</div>
+          </div>
+          <UserMenu user={user} onLogout={onLogout} onDashboard={()=>{}} onUnlock={onUnlock} />
+        </div>
+      </nav>
+
+      <div className="mx-auto max-w-6xl px-4 py-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#2b2b2b]">नमस्कार, {user?.name || 'मित्रा'}!</h1>
+            <p className="text-neutral-600 text-sm">तुमचे सर्व बायोडाटे इथे आहेत {user?.isPremium && <span className="text-[#B8860B] font-semibold ml-1">• प्रीमियम सदस्य 👑</span>}</p>
+          </div>
+          <Button onClick={onNew} className="rounded-full bg-[#B8860B] hover:bg-[#9c7009] text-white"><Plus className="w-4 h-4 mr-1"/> नवीन</Button>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-20 text-neutral-500"><Loader2 className="w-5 h-5 animate-spin mr-2"/> लोड होत आहे...</div>
+        ) : items.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-[#E8D8A8] bg-white p-10 text-center">
+            <div className="text-neutral-600 mb-4">तुमचे अजून एकही बायोडाटा सेव्ह नाहीत</div>
+            <Button onClick={onNew} className="rounded-full bg-[#B8860B] hover:bg-[#9c7009] text-white"><Plus className="w-4 h-4 mr-1"/> पहिला बायोडाटा तयार करा</Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {items.map((it) => (
+              <Card key={it._id} className="p-0 border-[#E8D8A8] overflow-hidden bg-white">
+                <div className="p-3 border-b border-[#E8D8A8] flex items-center justify-between">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-[#333] truncate">{it.title || 'बायोडाटा'}</div>
+                    <div className="text-xs text-neutral-500">{new Date(it.updatedAt).toLocaleString('mr-IN')}</div>
+                  </div>
+                  <span className="text-xs px-2 py-1 rounded-full bg-[#FDF7E5] text-[#7A1F1F]">{it.template === 't1' ? 'सुवर्ण' : it.template === 't2' ? 'मरून' : 'मिनिमल'}</span>
+                </div>
+                <div className="p-3 bg-[#FBF7EA]">
+                  <div className="scale-[0.85] origin-top pointer-events-none max-h-[320px] overflow-hidden">
+                    <BiodataView data={it.data} template={it.template} />
+                  </div>
+                </div>
+                <div className="p-3 border-t border-[#E8D8A8] flex items-center gap-2">
+                  <Button size="sm" onClick={() => onEdit(it)} className="flex-1 rounded-full bg-[#B8860B] hover:bg-[#9c7009] text-white"><Edit className="w-4 h-4 mr-1"/> उघडा</Button>
+                  <Button size="sm" variant="outline" onClick={() => doDelete(it._id)} className="rounded-full border-red-200 text-red-600 hover:bg-red-50"><Trash2 className="w-4 h-4"/></Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 const TemplatesGallery = ({ open, onOpenChange, onSelect }) => (
   <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="max-w-5xl w-[95vw] h-[90vh] p-0 flex flex-col">
@@ -706,10 +959,10 @@ const TemplatesGallery = ({ open, onOpenChange, onSelect }) => (
       </div>
       <div className="flex-1 overflow-y-auto p-4 bg-[#FBF7EA]">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[{ k: 't1', title: 'पारंपरिक सुवर्ण' },{ k: 't2', title: 'रॉयल मरून' },{ k: 't3', title: 'मिनिमल मॉडर्न' }].map(t=>(
+          {[{ k: 't1', title: 'पारंपरिक सुवर्ण', prem:false },{ k: 't2', title: 'रॉयल मरून', prem:true },{ k: 't3', title: 'मिनिमल मॉडर्न', prem:true }].map(t=>(
             <div key={t.k} className="bg-white rounded-2xl border border-[#E8D8A8] overflow-hidden">
               <div className="p-3 flex items-center justify-between border-b border-[#E8D8A8]">
-                <div className="font-semibold text-[#2b2b2b]">{t.title}</div>
+                <div className="font-semibold text-[#2b2b2b] flex items-center gap-1">{t.title} {t.prem && <Crown className="w-4 h-4 text-[#B8860B]"/>}</div>
                 <Button size="sm" className="rounded-full bg-[#B8860B] hover:bg-[#9c7009] text-white" onClick={()=>onSelect(t.k)}>निवडा</Button>
               </div>
               <div className="p-3"><BiodataView data={samplePreviewData()} template={t.k} /></div>
@@ -721,19 +974,121 @@ const TemplatesGallery = ({ open, onOpenChange, onSelect }) => (
   </Dialog>
 )
 
+// ---------- Main App ----------
 const App = () => {
-  const [view, setView] = useState('landing')
+  const [view, setView] = useState('landing') // landing | builder | dashboard
+  const [user, setUser] = useState(null)
+  const [authChecked, setAuthChecked] = useState(false)
   const [tplOpen, setTplOpen] = useState(false)
+  const [premiumOpen, setPremiumOpen] = useState(false)
+  const [loginRequiredOpen, setLoginRequiredOpen] = useState(false)
+  const [loginReason, setLoginReason] = useState('')
+  const [editingItem, setEditingItem] = useState(null) // { _id, data, template }
+
+  const refreshUser = useCallback(async () => {
+    try {
+      const r = await api.me()
+      setUser(r.user || null)
+    } catch { setUser(null) }
+    finally { setAuthChecked(true) }
+  }, [])
+
+  // Handle Emergent auth callback (URL hash: #session_id=...)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const hash = window.location.hash || ''
+    if (hash.startsWith('#session_id=')) {
+      const sid = hash.substring('#session_id='.length)
+      // Clean hash immediately
+      history.replaceState(null, '', window.location.pathname + window.location.search)
+      ;(async () => {
+        const r = await api.session(sid)
+        if (r.ok) {
+          setUser(r.user)
+          setAuthChecked(true)
+          toast.success('स्वागत आहे, ' + (r.user?.name || 'मित्रा') + '!')
+          setView('dashboard')
+        } else {
+          toast.error('लॉगिन अयशस्वी')
+          refreshUser()
+        }
+      })()
+    } else {
+      refreshUser()
+    }
+  }, [refreshUser])
+
+  const handleLogout = async () => {
+    await api.logout()
+    setUser(null)
+    setView('landing')
+    toast.success('लॉगआउट झाले')
+  }
+
+  const openDashboard = () => {
+    if (!user) { setLoginReason('डॅशबोर्ड पाहण्यासाठी लॉगिन करा'); setLoginRequiredOpen(true); return }
+    setEditingItem(null); setView('dashboard')
+  }
+
+  const startBuilder = (item) => {
+    if (item) setEditingItem(item)
+    else setEditingItem(null)
+    setView('builder')
+  }
+
+  const openPremium = () => {
+    if (!user) { setLoginReason('प्रीमियम खरेदी करण्यासाठी प्रथम लॉगिन करा'); setLoginRequiredOpen(true); return }
+    setPremiumOpen(true)
+  }
+
   return (
     <>
       <Toaster position="top-center" richColors />
       {view === 'landing' && (
         <>
-          <Landing onStart={()=>setView('builder')} onGoTemplates={()=>setTplOpen(true)} />
-          <TemplatesGallery open={tplOpen} onOpenChange={setTplOpen} onSelect={()=>{ setTplOpen(false); setView('builder') }} />
+          <Landing
+            onStart={() => startBuilder(null)}
+            onGoTemplates={() => setTplOpen(true)}
+            user={user}
+            onLogout={handleLogout}
+            onDashboard={openDashboard}
+            onUnlock={openPremium}
+          />
+          <TemplatesGallery open={tplOpen} onOpenChange={setTplOpen} onSelect={()=>{ setTplOpen(false); startBuilder(null) }} />
         </>
       )}
-      {view === 'builder' && <Builder onBack={()=>setView('landing')} />}
+      {view === 'builder' && (
+        <Builder
+          onBack={() => setView('landing')}
+          user={user}
+          initialData={editingItem?.data}
+          initialId={editingItem?._id}
+          initialTemplate={editingItem?.template}
+          onSavedCloud={() => {}}
+          onNeedLogin={(reason)=>{ setLoginReason(reason || ''); setLoginRequiredOpen(true) }}
+          onOpenPremium={openPremium}
+          onOpenDashboard={openDashboard}
+        />
+      )}
+      {view === 'dashboard' && (
+        <Dashboard
+          user={user}
+          onBack={() => setView('landing')}
+          onEdit={(item) => startBuilder(item)}
+          onNew={() => startBuilder(null)}
+          onLogout={handleLogout}
+          onUnlock={openPremium}
+        />
+      )}
+
+      <PremiumModal
+        open={premiumOpen}
+        onOpenChange={setPremiumOpen}
+        user={user}
+        onUnlocked={refreshUser}
+        onNeedLogin={()=>{ setPremiumOpen(false); setLoginReason('प्रीमियम खरेदी करण्यासाठी लॉगिन करा'); setLoginRequiredOpen(true) }}
+      />
+      <LoginRequiredModal open={loginRequiredOpen} onOpenChange={setLoginRequiredOpen} reason={loginReason} />
     </>
   )
 }
