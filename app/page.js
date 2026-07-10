@@ -305,23 +305,6 @@ const StepGod = ({ data, update }) => {
           ))}
         </div>
       </Field>
-      <Field label="स्वतःची देव प्रतिमा (Optional)">
-        <label className="flex items-center gap-2 p-3 rounded-xl border border-dashed border-[#E8D8A8] bg-[#FFFDF5] cursor-pointer">
-          <Upload className="w-4 h-4 text-[#B8860B]" />
-          <span className="text-sm text-[#7A1F1F]">प्रतिमा अपलोड करा</span>
-          <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
-            const f = e.target.files?.[0]; if (!f) return
-            const url = await compressImageToDataURL(f, 400, 0.9)
-            setGod({ customImage: url }); toast.success('देव प्रतिमा जोडली')
-          }} />
-          {data.god.customImage && <img src={data.god.customImage} className="ml-auto w-10 h-10 rounded object-cover" alt="" />}
-        </label>
-      </Field>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field label="देवाचे नाव"><RoundInput value={data.god.name} onChange={(e)=>setGod({name:e.target.value})} placeholder="उदा. श्री गणेश" /></Field>
-        <Field label="मंदिराचे नाव"><RoundInput value={data.god.temple} onChange={(e)=>setGod({temple:e.target.value})} placeholder="उदा. दगडूशेठ हलवाई" /></Field>
-      </div>
-      <Field label="श्लोक (Optional)"><RoundTextarea rows={2} value={data.god.shlok} onChange={(e)=>setGod({shlok:e.target.value})} placeholder="वक्रतुण्ड महाकाय सूर्यकोटि समप्रभ..." /></Field>
     </div>
   )
 }
@@ -336,11 +319,7 @@ const StepBasic = ({ data, update }) => {
     <div className="space-y-4">
       <div className="grid grid-cols-4 gap-2">
         <Field label="उपसर्ग" className="col-span-1"><RoundSelect value={data.namePrefix} onValueChange={(v)=>update({namePrefix:v})} placeholder="चि." options={NAME_PREFIX} /></Field>
-        <Field label="नाव" className="col-span-3"><RoundInput value={data.firstName} onChange={(e)=>update({firstName:e.target.value})} placeholder="पहिले नाव" /></Field>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field label="वडिलांचे नाव / मधले नाव"><RoundInput value={data.middleName} onChange={(e)=>update({middleName:e.target.value})} placeholder="उदा. माणिक" /></Field>
-        <Field label="आडनाव"><RoundInput value={data.lastName} onChange={(e)=>update({lastName:e.target.value})} placeholder="उदा. पाटील" /></Field>
+        <Field label="नाव" className="col-span-3"><RoundInput value={data.firstName} onChange={(e)=>update({firstName:e.target.value})} placeholder="पूर्ण नाव" /></Field>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Field label="जन्म तारीख"><RoundInput type="date" value={data.dob} onChange={(e)=>update({dob:e.target.value})} /></Field>
@@ -357,9 +336,8 @@ const StepBasic = ({ data, update }) => {
         <Field label="नाडी"><RoundSelect value={data.nadi} onValueChange={(v)=>update({nadi:v})} placeholder="निवडा" options={NADIS} /></Field>
         <Field label="मंगळ"><RoundSelect value={data.mangal} onValueChange={(v)=>update({mangal:v})} placeholder="निवडा" options={MANGAL} /></Field>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Field label="उंची"><RoundInput value={data.height} onChange={(e)=>update({height:e.target.value})} placeholder={"5'8\""} /></Field>
-        <Field label="वजन"><RoundInput value={data.weight} onChange={(e)=>update({weight:e.target.value})} placeholder="६५ किलो" /></Field>
         <Field label="रक्तगट"><RoundSelect value={data.bloodGroup} onValueChange={(v)=>update({bloodGroup:v})} placeholder="निवडा" options={BLOOD_GROUPS} /></Field>
         <Field label="रंग"><RoundSelect value={data.complexion} onValueChange={(v)=>update({complexion:v})} placeholder="निवडा" options={COMPLEXIONS} /></Field>
       </div>
@@ -368,11 +346,6 @@ const StepBasic = ({ data, update }) => {
         <Field label="जात"><RoundInput value={data.caste} onChange={(e)=>update({caste:e.target.value})} placeholder="उदा. हिंदू - मराठा" /></Field>
         <Field label="उपजात"><RoundInput value={data.subCaste} onChange={(e)=>update({subCaste:e.target.value})} placeholder="उदा. ९६ कुळी" /></Field>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field label="वैवाहिक स्थिती"><RoundSelect value={data.maritalStatus} onValueChange={(v)=>update({maritalStatus:v})} placeholder="निवडा" options={MARITAL} /></Field>
-        <Field label="अपंगत्व"><RoundInput value={data.disability} onChange={(e)=>update({disability:e.target.value})} placeholder="नाही" /></Field>
-      </div>
-      <Field label="छंद"><RoundInput value={data.hobbies} onChange={(e)=>update({hobbies:e.target.value})} placeholder="वाचन, प्रवास" /></Field>
       <Field label="फोटो अपलोड">
         <label className="flex items-center gap-3 p-3 rounded-xl border border-dashed border-[#E8D8A8] bg-[#FFFDF5] cursor-pointer">
           <Camera className="w-4 h-4 text-[#B8860B]" />
@@ -388,31 +361,19 @@ const StepBasic = ({ data, update }) => {
 
 const StepEdu = ({ data, update }) => (
   <div className="space-y-4">
+    <Field label="शिक्षण"><RoundInput value={data.education} onChange={(e)=>update({education:e.target.value})} placeholder="उदा. B.E. Computer / M.A. (Eco)" /></Field>
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <Field label="शिक्षण"><RoundInput value={data.education} onChange={(e)=>update({education:e.target.value})} placeholder="उदा. B.E. Computer" /></Field>
-      <Field label="कॉलेज"><RoundInput value={data.college} onChange={(e)=>update({college:e.target.value})} placeholder="उदा. COEP Pune" /></Field>
-    </div>
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <Field label="पदवी"><RoundInput value={data.degree} onChange={(e)=>update({degree:e.target.value})} placeholder="M.A. (Eco)" /></Field>
       <Field label="नोकरी"><RoundInput value={data.job} onChange={(e)=>update({job:e.target.value})} placeholder="उदा. Software Engineer" /></Field>
-    </div>
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <Field label="कंपनी"><RoundInput value={data.company} onChange={(e)=>update({company:e.target.value})} placeholder="Bank of Baroda, Pune" /></Field>
-      <Field label="व्यवसाय"><RoundInput value={data.business} onChange={(e)=>update({business:e.target.value})} placeholder="स्वतःचा व्यवसाय" /></Field>
     </div>
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <Field label="वार्षिक उत्पन्न"><RoundInput value={data.annualIncome} onChange={(e)=>update({annualIncome:e.target.value})} placeholder="उदा. ८ लाख रु." /></Field>
+      <Field label="व्यवसाय"><RoundInput value={data.business} onChange={(e)=>update({business:e.target.value})} placeholder="स्वतःचा व्यवसाय" /></Field>
       <Field label="मासिक उत्पन्न"><RoundInput value={data.monthlyIncome} onChange={(e)=>update({monthlyIncome:e.target.value})} placeholder="उदा. ५०,००० रु." /></Field>
     </div>
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
       <Field label="शेती"><RoundInput value={data.farm} onChange={(e)=>update({farm:e.target.value})} placeholder="२ एकर बागायत" /></Field>
-      <Field label="जमीन"><RoundInput value={data.land} onChange={(e)=>update({land:e.target.value})} placeholder="५ एकर" /></Field>
       <Field label="घर"><RoundInput value={data.house} onChange={(e)=>update({house:e.target.value})} placeholder="स्वतःचे" /></Field>
       <Field label="फ्लॅट"><RoundInput value={data.flat} onChange={(e)=>update({flat:e.target.value})} placeholder="1BHK, पुणे" /></Field>
-    </div>
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <Field label="वाहन"><RoundInput value={data.vehicle} onChange={(e)=>update({vehicle:e.target.value})} placeholder="कार, बाईक" /></Field>
-      <Field label="इतर मालमत्ता"><RoundInput value={data.otherAssets} onChange={(e)=>update({otherAssets:e.target.value})} placeholder="—" /></Field>
     </div>
   </div>
 )
@@ -459,15 +420,14 @@ const StepFamily = ({ data, update }) => {
           </div>
         ))}
       </div>
-      <Field label="कुटुंबातील सदस्य संख्या"><RoundInput value={data.familyCount} onChange={(e)=>update({familyCount:e.target.value})} placeholder="उदा. ६" /></Field>
     </div>
   )
 }
 
 const RELATIVE_LABELS = [
-  ['mama', 'मामा'], ['mami', 'मामी'], ['kaka', 'काका'], ['kaku', 'काकू'],
-  ['atya', 'आत्या'], ['mavshi', 'मावशी'], ['chulte', 'चुलते'], ['ajoba', 'आजोबा'], ['aji', 'आजी'],
+  ['mama', 'मामा'], ['atya', 'आत्या'], ['mavshi', 'मावशी'], ['chulte', 'चुलते'], ['ajoba', 'आजोबा'],
 ]
+
 const StepRelatives = ({ data, update }) => {
   const setRel = (key, i, val) => { const arr = [...(data.relatives?.[key] || [''])]; arr[i] = val; update({ relatives: { ...(data.relatives||{}), [key]: arr } }) }
   const addRel = (key) => update({ relatives: { ...(data.relatives||{}), [key]: [...(data.relatives?.[key]||[]), ''] } })
@@ -494,23 +454,10 @@ const StepRelatives = ({ data, update }) => {
 
 const StepContact = ({ data, update }) => (
   <div className="space-y-3">
-    <Field label="पत्ता"><RoundTextarea rows={2} value={data.address} onChange={(e)=>update({address:e.target.value})} placeholder="मु.पो. ..." /></Field>
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-      <Field label="गाव"><RoundInput value={data.village} onChange={(e)=>update({village:e.target.value})} placeholder="येलूर" /></Field>
-      <Field label="तालुका"><RoundInput value={data.taluka} onChange={(e)=>update({taluka:e.target.value})} placeholder="वाळवा" /></Field>
-      <Field label="जिल्हा"><RoundInput value={data.district} onChange={(e)=>update({district:e.target.value})} placeholder="सांगली" /></Field>
-    </div>
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <Field label="राज्य"><RoundSelect value={data.state} onValueChange={(v)=>update({state:v})} placeholder="निवडा" options={STATES} /></Field>
-      <Field label="पिनकोड"><RoundInput value={data.pincode} onChange={(e)=>update({pincode:e.target.value})} placeholder="416313" /></Field>
-    </div>
+    <Field label="पत्ता"><RoundTextarea rows={2} value={data.address} onChange={(e)=>update({address:e.target.value})} placeholder="मु.पो. ..., ता. ..., जि. ..." /></Field>
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <Field label="मोबाईल नंबर"><RoundInput value={data.mobile} onChange={(e)=>update({mobile:e.target.value})} placeholder="9730702976" /></Field>
-      <Field label="दुसरा नंबर"><RoundInput value={data.mobile2} onChange={(e)=>update({mobile2:e.target.value})} placeholder="8600145772" /></Field>
-    </div>
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <Field label="WhatsApp"><RoundInput value={data.whatsapp} onChange={(e)=>update({whatsapp:e.target.value})} placeholder="9730702976" /></Field>
-      <Field label="Email"><RoundInput value={data.email} onChange={(e)=>update({email:e.target.value})} placeholder="you@example.com" /></Field>
     </div>
   </div>
 )
