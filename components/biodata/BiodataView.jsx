@@ -1,7 +1,11 @@
 'use client'
+import { useEffect, useRef, useState } from 'react'
 import GoldFrame, { MinimalFrame } from './GoldFrame'
 import GodIcon from './GodIcon'
+import Watermark from './Watermark'
+import { A4Paper, A4Viewer, A4_HEIGHT } from './A4Page'
 
+// A single row of the biodata (label : value)
 const Row = ({ label, value }) => {
   if (!value || (Array.isArray(value) && value.length === 0)) return null
   return (
@@ -14,54 +18,43 @@ const Row = ({ label, value }) => {
 }
 
 const SectionTitle = ({ children, color = '#B8860B' }) => (
-  <div style={{ textAlign: 'center', color, fontWeight: 800, fontSize: 22, letterSpacing: '0.5px', padding: '10px 0 6px', textShadow: '0 1px 0 rgba(0,0,0,0.02)' }}>{children}</div>
+  <div style={{ textAlign: 'center', color, fontWeight: 800, fontSize: 20, letterSpacing: '0.5px', padding: '8px 0 4px' }}>{children}</div>
 )
 
-export default function BiodataView({ data, template = 't1', innerRef }) {
+// Internal content that renders the biodata rows. Isolated so we can auto-fit inside A4.
+function BiodataContent({ data }) {
   const d = data || {}
   const godName = d.god?.name || 'श्री गणेश'
   const templeName = d.god?.temple
   const shlok = d.god?.shlok
-
-  // Compose header lines
-  const headerLines = []
-  if (d.god?.kuldaivatLine) headerLines.push(d.god.kuldaivatLine)
-  headerLines.push('|| श्री गणेशाय नमः ||')
-
   const relatives = d.relatives || {}
   const relItems = [
     ['मामा', relatives.mama], ['मामी', relatives.mami], ['काका', relatives.kaka], ['काकू', relatives.kaku],
     ['आत्या', relatives.atya], ['मावशी', relatives.mavshi], ['चुलते', relatives.chulte], ['आजोबा', relatives.ajoba], ['आजी', relatives.aji],
   ]
-
   const custom = d.customFields || []
-
-  const Content = (
-    <div ref={innerRef} className="font-marathi" style={{ color: '#2b2b2b' }}>
+  return (
+    <div className="font-marathi" style={{ color: '#2b2b2b' }}>
       {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: 6 }}>
+      <div style={{ textAlign: 'center', marginBottom: 4 }}>
         {templeName && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
-            <div style={{ color: '#7A1F1F', fontWeight: 700, fontSize: 16 }}>|| श्री {templeName} प्रसन्न ||</div>
-          </div>
+          <div style={{ color: '#7A1F1F', fontWeight: 700, fontSize: 15 }}>|| श्री {templeName} प्रसन्न ||</div>
         )}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 4 }}>
-          <GodIcon name={godName} size={96} custom={d.god?.customImage} />
+          <GodIcon name={godName} size={90} custom={d.god?.customImage} />
         </div>
         <div style={{ color: '#7A1F1F', fontWeight: 800, fontSize: 20, marginTop: 4 }}>|| श्री गणेशाय नमः ||</div>
-        {shlok && <div style={{ color: '#7A1F1F', fontStyle: 'italic', marginTop: 2, fontSize: 14 }}>{shlok}</div>}
-        <div style={{ color: '#B8860B', fontWeight: 800, fontSize: 26, marginTop: 6, letterSpacing: '1px' }}>परिचय पत्र</div>
+        {shlok && <div style={{ color: '#7A1F1F', fontStyle: 'italic', marginTop: 2, fontSize: 13 }}>{shlok}</div>}
+        <div style={{ color: '#B8860B', fontWeight: 800, fontSize: 26, marginTop: 4, letterSpacing: '1px' }}>परिचय पत्र</div>
       </div>
 
-      {/* Photo (optional top right / center) */}
       {d.photo && (
-        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8, marginBottom: 8 }}>
-          <img src={d.photo} alt="फोटो" style={{ width: 130, height: 160, objectFit: 'cover', border: '3px solid #B8860B', borderRadius: 6 }} />
+        <div style={{ display: 'flex', justifyContent: 'center', margin: '6px 0' }}>
+          <img src={d.photo} alt="फोटो" style={{ width: 120, height: 150, objectFit: 'cover', border: '3px solid #B8860B', borderRadius: 6 }} />
         </div>
       )}
 
-      {/* Basic Info */}
-      <div style={{ marginTop: 8 }}>
+      <div>
         <Row label="नाव" value={[d.namePrefix, d.firstName, d.middleName, d.lastName].filter(Boolean).join(' ')} />
         <Row label="जन्म तारीख" value={d.dob} />
         <Row label="जन्म वेळ" value={d.birthTime} />
@@ -82,7 +75,6 @@ export default function BiodataView({ data, template = 't1', innerRef }) {
         <Row label="अपंगत्व" value={d.disability} />
         <Row label="छंद" value={d.hobbies} />
 
-        {/* Education & Job */}
         <Row label="शिक्षण" value={[d.education, d.college].filter(Boolean).join(', ')} />
         <Row label="पदवी" value={d.degree} />
         <Row label="नोकरी" value={[d.job, d.company].filter(Boolean).join(', ')} />
@@ -97,7 +89,6 @@ export default function BiodataView({ data, template = 't1', innerRef }) {
         <Row label="इतर मालमत्ता" value={d.otherAssets} />
       </div>
 
-      {/* Family */}
       {Boolean(d.fatherName || d.motherName || (d.brothers && d.brothers.length) || (d.sisters && d.sisters.length) || d.familyCount) && (
         <>
           <SectionTitle>कौटुंबिक माहिती</SectionTitle>
@@ -113,7 +104,6 @@ export default function BiodataView({ data, template = 't1', innerRef }) {
         </>
       )}
 
-      {/* Relatives */}
       {relItems.some(([, v]) => v && v.length) && (
         <>
           {relItems.map(([label, list]) => (
@@ -124,7 +114,6 @@ export default function BiodataView({ data, template = 't1', innerRef }) {
         </>
       )}
 
-      {/* Custom fields */}
       {custom.filter(c => c.name && c.value).length > 0 && (
         <>
           {custom.filter(c => c.name && c.value).map((c, i) => (
@@ -133,7 +122,6 @@ export default function BiodataView({ data, template = 't1', innerRef }) {
         </>
       )}
 
-      {/* Contact */}
       {(d.address || d.mobile || d.whatsapp || d.email) && (
         <>
           <SectionTitle>संपर्क</SectionTitle>
@@ -145,9 +133,82 @@ export default function BiodataView({ data, template = 't1', innerRef }) {
       )}
     </div>
   )
+}
 
-  if (template === 't3') {
-    return <MinimalFrame variant="t3">{Content}</MinimalFrame>
-  }
-  return <GoldFrame variant={template}>{Content}</GoldFrame>
+// Auto-fit content: if content overflows the A4 area, scale it down proportionally.
+function AutoFitContent({ data, availableHeight }) {
+  const contentRef = useRef(null)
+  const [scale, setScale] = useState(1)
+  useEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+    // Reset to measure natural size
+    el.style.transform = 'none'
+    const h = el.scrollHeight
+    if (h > availableHeight) {
+      const s = availableHeight / h
+      setScale(Math.max(0.5, s))
+    } else {
+      setScale(1)
+    }
+  }, [data, availableHeight])
+  return (
+    <div
+      ref={contentRef}
+      style={{
+        transform: `scale(${scale})`,
+        transformOrigin: 'top left',
+        width: scale < 1 ? `${100 / scale}%` : '100%',
+      }}
+    >
+      <BiodataContent data={data} />
+    </div>
+  )
+}
+
+// Public BiodataView renders content inside an A4 paper with optional viewer scaling and watermark.
+// - `data`: form data
+// - `template`: 't1' | 't2' | 't3'
+// - `showWatermark`: boolean (guest/non-premium)
+// - `scaled`: when true (default), wraps in A4Viewer that scales A4 paper to fit container width.
+//             When false, renders A4Paper at its native pixel size (used for PDF capture).
+// - `printMode`: disables shadow/borders on paper (for capture)
+export default function BiodataView({ data, template = 't1', showWatermark = false, scaled = true, printMode = false }) {
+  const Body = (
+    <A4Paper printMode={printMode}>
+      {template === 't3' ? (
+        <MinimalFrame variant="t3">
+          <AutoFitContent data={data} availableHeight={A4_HEIGHT - 120} />
+        </MinimalFrame>
+      ) : (
+        <GoldFrame variant={template}>
+          <AutoFitContent data={data} availableHeight={A4_HEIGHT - 130} />
+        </GoldFrame>
+      )}
+      {showWatermark && <Watermark />}
+    </A4Paper>
+  )
+  if (scaled) return <A4Viewer>{Body}</A4Viewer>
+  return Body
+}
+
+// Miniature A4 preview used inside template gallery cards.
+// Renders at ~40% of A4 to look like a real paper thumbnail.
+export function BiodataThumb({ data, template = 't1', showWatermark = false, maxScale = 1 }) {
+  return (
+    <A4Viewer maxScale={maxScale}>
+      <A4Paper>
+        {template === 't3' ? (
+          <MinimalFrame variant="t3">
+            <AutoFitContent data={data} availableHeight={A4_HEIGHT - 120} />
+          </MinimalFrame>
+        ) : (
+          <GoldFrame variant={template}>
+            <AutoFitContent data={data} availableHeight={A4_HEIGHT - 130} />
+          </GoldFrame>
+        )}
+        {showWatermark && <Watermark />}
+      </A4Paper>
+    </A4Viewer>
+  )
 }

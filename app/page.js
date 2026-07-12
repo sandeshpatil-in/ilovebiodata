@@ -49,7 +49,7 @@ const STEPS = [
   { key: 'contact', label: 'संपर्क' },
 ]
 
-const PREMIUM_TEMPLATES = ['t2', 't3']
+const PREMIUM_TEMPLATES = [] // all templates free to preview; only PDF download & save require login/premium
 const PREMIUM_PRICE = process.env.NEXT_PUBLIC_PREMIUM_PRICE_INR || '99'
 
 const emptyData = () => ({
@@ -222,22 +222,20 @@ const Landing = ({ onStart, onGoTemplates, user, onLogout, onDashboard, onUnlock
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {[
-          { key: 't1', title: 'पारंपरिक सुवर्ण', sub: 'Traditional Gold Border', premium: false },
-          { key: 't2', title: 'रॉयल मरून', sub: 'Royal Maroon', premium: true },
-          { key: 't3', title: 'मिनिमल मॉडर्न', sub: 'Minimal Modern', premium: true },
+          { key: 't1', title: 'पारंपरिक सुवर्ण', sub: 'Traditional Gold Border' },
+          { key: 't2', title: 'रॉयल मरून', sub: 'Royal Maroon' },
+          { key: 't3', title: 'मिनिमल मॉडर्न', sub: 'Minimal Modern' },
         ].map((t) => (
-          <Card key={t.key} className="p-0 overflow-hidden border-[#E8D8A8] bg-white cursor-pointer hover:shadow-lg transition-shadow relative" onClick={onStart}>
+          <Card key={t.key} className="p-0 overflow-hidden border-[#E8D8A8] bg-white cursor-pointer hover:shadow-xl transition-shadow relative" onClick={onStart}>
             <div className="p-3 border-b border-[#E8D8A8] flex items-center justify-between">
               <div>
-                <div className="font-semibold text-[#2b2b2b] flex items-center gap-1">{t.title} {t.premium && <Crown className="w-4 h-4 text-[#B8860B]" />}</div>
+                <div className="font-semibold text-[#2b2b2b]">{t.title}</div>
                 <div className="text-xs text-neutral-500">{t.sub}</div>
               </div>
-              <span className={cx("text-xs px-2 py-1 rounded-full", t.premium ? "bg-[#7A1F1F] text-white" : "bg-[#FDF7E5] text-[#7A1F1F]")}>{t.premium ? 'प्रीमियम' : 'मोफत'}</span>
+              <span className="text-xs px-2 py-1 rounded-full bg-[#FDF7E5] text-[#7A1F1F] font-medium">प्रीव्ह्यू</span>
             </div>
-            <div className="p-3 bg-[#FBF7EA]">
-              <div className="origin-top">
-                <BiodataView template={t.key} data={samplePreviewData()} />
-              </div>
+            <div className="p-3 bg-[#F1EDDF]">
+              <BiodataView template={t.key} data={samplePreviewData()} showWatermark={true} />
             </div>
           </Card>
         ))}
@@ -559,24 +557,38 @@ const PremiumModal = ({ open, onOpenChange, user, onUnlocked, onNeedLogin }) => 
   )
 }
 
-// ---------- Login required modal ----------
-const LoginRequiredModal = ({ open, onOpenChange, reason }) => (
-  <Dialog open={open} onOpenChange={onOpenChange}>
-    <DialogContent className="max-w-sm">
-      <DialogHeader>
-        <DialogTitle className="text-[#7A1F1F]">लॉगिन आवश्यक</DialogTitle>
-        <DialogDescription>{reason || 'हे वैशिष्ट्य वापरण्यासाठी कृपया लॉगिन करा.'}</DialogDescription>
-      </DialogHeader>
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={()=>onOpenChange(false)} className="rounded-full">रद्द करा</Button>
-        <Button onClick={beginGoogleLogin} className="rounded-full bg-[#B8860B] hover:bg-[#9c7009] text-white"><LogIn className="w-4 h-4 mr-1"/> Google ने लॉगिन</Button>
-      </div>
-    </DialogContent>
-  </Dialog>
-)
+// ---------- Login required modal (for download/save) ----------
+const LoginRequiredModal = ({ open, onOpenChange, mode = 'download' }) => {
+  const isDownload = mode === 'download'
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-[#7A1F1F] text-xl">
+            {isDownload ? 'बायोडाटा डाउनलोड करण्यासाठी लॉगिन करा' : 'बायोडाटा सेव्ह करण्यासाठी लॉगिन करा'}
+          </DialogTitle>
+          <DialogDescription className="text-[15px] leading-relaxed">
+            तुमचा बायोडाटा तयार झाला आहे. PDF डाउनलोड करण्यासाठी किंवा सेव्ह करण्यासाठी प्रथम खाते तयार करा.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="rounded-xl bg-[#FFFDF5] border border-[#E8D8A8] p-3 text-sm text-[#333]">
+          <div className="flex items-center gap-2"><Check className="w-4 h-4 text-[#B8860B]"/> तुमची भरलेली माहिती सुरक्षित राहील</div>
+          <div className="flex items-center gap-2"><Check className="w-4 h-4 text-[#B8860B]"/> लॉगिननंतर तीच बायोडाटा पुन्हा दिसेल</div>
+          <div className="flex items-center gap-2"><Check className="w-4 h-4 text-[#B8860B]"/> Google द्वारे १ क्लिकमध्ये लॉगिन</div>
+        </div>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={()=>onOpenChange(false)} className="rounded-full">नंतर</Button>
+          <Button onClick={beginGoogleLogin} className="rounded-full bg-[#B8860B] hover:bg-[#9c7009] text-white h-11 px-5 font-semibold">
+            <LogIn className="w-4 h-4 mr-1"/> लॉगिन / साइनअप
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 // ---------- Builder ----------
-const Builder = ({ onBack, user, initialData, initialId, initialTemplate, onSavedCloud, onNeedLogin, onOpenPremium, onOpenDashboard }) => {
+const Builder = ({ onBack, user, initialData, initialId, initialTemplate, onSavedCloud, onNeedLoginForSave, onNeedLoginForDownload, onOpenPremium, onOpenDashboard }) => {
   const [data, setData] = useState(initialData || emptyData())
   const [cloudId, setCloudId] = useState(initialId || null)
   const [step, setStep] = useState(0)
@@ -612,16 +624,12 @@ const Builder = ({ onBack, user, initialData, initialId, initialTemplate, onSave
   const next = () => setStep((s) => Math.min(STEPS.length - 1, s + 1))
   const prev = () => setStep((s) => Math.max(0, s - 1))
 
-  const chooseTemplate = (t) => {
-    if (PREMIUM_TEMPLATES.includes(t) && !user?.isPremium) {
-      onOpenPremium?.()
-      return
-    }
-    setTemplate(t)
-  }
+  const chooseTemplate = (t) => setTemplate(t)
 
   const handleDownload = async () => {
-    if (PREMIUM_TEMPLATES.includes(template) && !user?.isPremium) { onOpenPremium?.(); return }
+    // Freemium gate: guest → login popup; logged in without premium → premium page
+    if (!user) { onNeedLoginForDownload?.(); return }
+    if (!user.isPremium) { onOpenPremium?.(); return }
     try {
       setDownloading(true)
       const html2canvas = (await import('html2canvas')).default
@@ -630,7 +638,7 @@ const Builder = ({ onBack, user, initialData, initialId, initialTemplate, onSave
       if (!node) return
       // Wait for fonts + layout
       if (document.fonts?.ready) { try { await document.fonts.ready } catch {} }
-      await new Promise(r => setTimeout(r, 150))
+      await new Promise(r => setTimeout(r, 200))
       // High-quality capture at 2x scale (≈ 150 DPI print equivalent for A4)
       const canvas = await html2canvas(node, {
         scale: 2,
@@ -639,30 +647,12 @@ const Builder = ({ onBack, user, initialData, initialId, initialTemplate, onSave
         logging: false,
         windowWidth: 794,
         width: 794,
+        height: 1123,
       })
       const imgData = canvas.toDataURL('image/jpeg', 0.95)
-      // A4 portrait: 210mm × 297mm
+      // A4 portrait: 210mm × 297mm - single page, exact fit
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true })
-      const pdfW = 210
-      const pdfH = 297
-      const imgW = pdfW
-      const imgH = (canvas.height * imgW) / canvas.width
-      if (imgH <= pdfH + 0.5) {
-        // Single page - top aligned
-        pdf.addImage(imgData, 'JPEG', 0, 0, imgW, imgH, undefined, 'FAST')
-      } else {
-        // Multi-page: tile the tall image
-        let heightLeft = imgH
-        let position = 0
-        pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH, undefined, 'FAST')
-        heightLeft -= pdfH
-        while (heightLeft > 0) {
-          position = heightLeft - imgH
-          pdf.addPage()
-          pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH, undefined, 'FAST')
-          heightLeft -= pdfH
-        }
-      }
+      pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST')
       const nameForFile = [data.firstName, data.lastName].filter(Boolean).join('_') || 'biodata'
       pdf.save(`${nameForFile}_biodata_A4.pdf`)
       toast.success('A4 PDF डाउनलोड झाला ✓')
@@ -672,7 +662,7 @@ const Builder = ({ onBack, user, initialData, initialId, initialTemplate, onSave
   }
 
   const handleSaveCloud = async () => {
-    if (!user) { onNeedLogin?.('क्लाउडवर सेव्ह करण्यासाठी लॉगिन आवश्यक आहे.'); return }
+    if (!user) { onNeedLoginForSave?.(); return }
     setSavingCloud(true)
     try {
       const res = await api.saveBiodata({ id: cloudId, data, template })
@@ -707,9 +697,9 @@ const Builder = ({ onBack, user, initialData, initialId, initialTemplate, onSave
 
   const TemplateChips = ({ onPick }) => (
     <div className="flex gap-1">
-      {[{k:'t1', label:'सुवर्ण'}, {k:'t2', label:'मरून', prem:true}, {k:'t3', label:'मिनिमल', prem:true}].map(t=>(
-        <button key={t.k} onClick={()=>onPick(t.k)} className={cx('px-2 py-1 text-xs rounded-full border flex items-center gap-1', template===t.k?'border-[#B8860B] bg-[#FFFDF0] text-[#7A1F1F]':'border-[#E8D8A8] text-neutral-600 bg-white')}>
-          {t.label}{t.prem && !user?.isPremium && <Lock className="w-3 h-3"/>}
+      {[{k:'t1', label:'सुवर्ण'}, {k:'t2', label:'मरून'}, {k:'t3', label:'मिनिमल'}].map(t=>(
+        <button key={t.k} onClick={()=>onPick(t.k)} className={cx('px-2 py-1 text-xs rounded-full border', template===t.k?'border-[#B8860B] bg-[#FFFDF0] text-[#7A1F1F]':'border-[#E8D8A8] text-neutral-600 bg-white')}>
+          {t.label}
         </button>
       ))}
     </div>
@@ -737,7 +727,7 @@ const Builder = ({ onBack, user, initialData, initialId, initialTemplate, onSave
                 <TemplateChips onPick={chooseTemplate} />
               </div>
               <div className="p-3 overflow-y-auto h-[calc(85vh-56px)]">
-                <BiodataView data={data} template={template} />
+                <BiodataView data={data} template={template} showWatermark={!user?.isPremium} />
               </div>
             </SheetContent>
           </Sheet>
@@ -794,9 +784,9 @@ const Builder = ({ onBack, user, initialData, initialId, initialTemplate, onSave
               <div className="text-sm text-neutral-600">लाईव्ह प्रीव्ह्यू</div>
               <TemplateChips onPick={chooseTemplate} />
             </div>
-            <div className="rounded-2xl border border-[#E8D8A8] bg-white shadow-sm overflow-hidden">
-              <div className="max-h-[calc(100vh-160px)] overflow-y-auto p-3">
-                <BiodataView data={data} template={template} />
+            <div className="rounded-2xl border border-[#E8D8A8] bg-[#F1EDDF] shadow-sm overflow-hidden">
+              <div className="max-h-[calc(100vh-160px)] overflow-y-auto p-4">
+                <BiodataView data={data} template={template} showWatermark={!user?.isPremium} />
               </div>
             </div>
           </div>
@@ -807,6 +797,10 @@ const Builder = ({ onBack, user, initialData, initialId, initialTemplate, onSave
 
       <Dialog open={showFinal} onOpenChange={setShowFinal}>
         <DialogContent className="max-w-5xl w-[95vw] h-[92vh] p-0 overflow-hidden flex flex-col">
+          <DialogHeader className="sr-only">
+            <DialogTitle>तुमचा बायोडाटा तयार आहे</DialogTitle>
+            <DialogDescription>टेम्पलेट निवडा आणि PDF डाउनलोड करा</DialogDescription>
+          </DialogHeader>
           <div className="p-3 border-b border-[#E8D8A8] flex items-center justify-between bg-white gap-2 flex-wrap">
             <div>
               <div className="font-bold text-[#7A1F1F]">तुमचा बायोडाटा तयार आहे!</div>
@@ -822,19 +816,21 @@ const Builder = ({ onBack, user, initialData, initialId, initialTemplate, onSave
               </Button>
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-3 md:p-6 bg-[#FBF7EA]">
-            <div className="mx-auto" style={{ width: '794px', maxWidth: '100%' }}>
-              <div ref={bioRef} className="bg-white">
-                <BiodataView data={data} template={template} />
+          <div className="flex-1 overflow-y-auto p-3 md:p-6 bg-[#F1EDDF]">
+            <div className="mx-auto" style={{ maxWidth: '900px' }}>
+              <div ref={bioRef}>
+                <BiodataView data={data} template={template} showWatermark={!user?.isPremium} />
               </div>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Hidden off-screen A4-width container used ONLY for high-quality PDF capture */}
-      <div ref={printRef} aria-hidden="true" style={{ position: 'fixed', left: '-10000px', top: 0, width: '794px', pointerEvents: 'none', background: '#FFFFFF' }}>
-        <BiodataView data={data} template={template} />
+      {/* Hidden off-screen A4-size container used ONLY for high-quality PDF capture.
+          `scaled={false}` renders BiodataView at native 794×1123 pixel size so the exported
+          PDF matches the on-screen A4 preview pixel-perfectly. */}
+      <div ref={printRef} aria-hidden="true" style={{ position: 'fixed', left: '-10000px', top: 0, pointerEvents: 'none', background: '#FFFFFF' }}>
+        <BiodataView data={data} template={template} scaled={false} printMode={true} showWatermark={!user?.isPremium} />
       </div>
     </div>
   )
@@ -873,13 +869,39 @@ const Dashboard = ({ user, onBack, onEdit, onNew, onLogout, onUnlock }) => {
       </nav>
 
       <div className="mx-auto max-w-6xl px-4 py-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-[#2b2b2b]">नमस्कार, {user?.name || 'मित्रा'}!</h1>
-            <p className="text-neutral-600 text-sm">तुमचे सर्व बायोडाटे इथे आहेत {user?.isPremium && <span className="text-[#B8860B] font-semibold ml-1">• प्रीमियम {user.premiumDaysLeft && user.premiumDaysLeft < 9999 ? `(${user.premiumDaysLeft} दिवस शिल्लक)` : 'सदस्य'} 👑</span>}</p>
+            <p className="text-neutral-600 text-sm">तुमचे सर्व बायोडाटे इथे व्यवस्थापित करा</p>
           </div>
-          <Button onClick={onNew} className="rounded-full bg-[#B8860B] hover:bg-[#9c7009] text-white"><Plus className="w-4 h-4 mr-1"/> नवीन</Button>
+          <Button onClick={onNew} className="rounded-full bg-[#B8860B] hover:bg-[#9c7009] text-white h-11 px-5 shadow-md"><Plus className="w-4 h-4 mr-1"/> नवीन बायोडाटा</Button>
         </div>
+
+        {/* Subscription status card */}
+        <Card className={cx('mb-6 p-0 overflow-hidden border-0 shadow-md rounded-2xl', user?.isPremium ? 'bg-gradient-to-r from-[#FBEFB8] via-[#FFF7D8] to-[#F6EFD4]' : 'bg-gradient-to-r from-[#FDF7E5] to-[#FBF7EA]')}>
+          <div className="p-5 md:p-6 flex items-center gap-4 flex-wrap">
+            <div className={cx('w-14 h-14 rounded-full flex items-center justify-center shadow-md', user?.isPremium ? 'bg-[#B8860B]' : 'bg-white border border-[#E8D8A8]')}>
+              {user?.isPremium ? <Crown className="w-7 h-7 text-white" /> : <Lock className="w-6 h-6 text-[#7A1F1F]" />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="font-bold text-[#2b2b2b] text-lg">
+                {user?.isPremium ? 'Premium सक्रिय आहे 🎉' : 'Free सदस्यत्व'}
+              </div>
+              <div className="text-sm text-neutral-700 mt-0.5">
+                {user?.isPremium
+                  ? (user.premiumDaysLeft && user.premiumDaysLeft < 9999
+                      ? `${user.premiumDaysLeft} दिवस शिल्लक • अमर्यादित डाउनलोड + सर्व टेम्पलेट्स`
+                      : 'आयुष्यभर वापर • अमर्यादित डाउनलोड + सर्व टेम्पलेट्स')
+                  : 'PDF डाउनलोड करण्यासाठी Premium घ्या — फक्त ₹49 / महिना'}
+              </div>
+            </div>
+            {!user?.isPremium && (
+              <Button onClick={onUnlock} className="rounded-full bg-[#7A1F1F] hover:bg-[#5f1616] text-white h-11 px-5 font-semibold">
+                <Crown className="w-4 h-4 mr-1"/> ₹49 मध्ये अपग्रेड
+              </Button>
+            )}
+          </div>
+        </Card>
 
         {loading ? (
           <div className="flex items-center justify-center py-20 text-neutral-500"><Loader2 className="w-5 h-5 animate-spin mr-2"/> लोड होत आहे...</div>
@@ -899,9 +921,9 @@ const Dashboard = ({ user, onBack, onEdit, onNew, onLogout, onUnlock }) => {
                   </div>
                   <span className="text-xs px-2 py-1 rounded-full bg-[#FDF7E5] text-[#7A1F1F]">{it.template === 't1' ? 'सुवर्ण' : it.template === 't2' ? 'मरून' : 'मिनिमल'}</span>
                 </div>
-                <div className="p-3 bg-[#FBF7EA]">
-                  <div className="origin-top pointer-events-none max-h-[420px] overflow-hidden">
-                    <BiodataView data={it.data} template={it.template} />
+                <div className="p-3 bg-[#F1EDDF]">
+                  <div className="pointer-events-none">
+                    <BiodataView data={it.data} template={it.template} showWatermark={!user?.isPremium} />
                   </div>
                 </div>
                 <div className="p-3 border-t border-[#E8D8A8] flex items-center gap-2">
@@ -917,29 +939,80 @@ const Dashboard = ({ user, onBack, onEdit, onNew, onLogout, onUnlock }) => {
   )
 }
 
-const TemplatesGallery = ({ open, onOpenChange, onSelect }) => (
-  <Dialog open={open} onOpenChange={onOpenChange}>
-    <DialogContent className="max-w-5xl w-[95vw] h-[90vh] p-0 flex flex-col">
-      <div className="p-3 border-b border-[#E8D8A8] bg-white">
-        <div className="font-bold text-[#7A1F1F]">प्रीमियम टेम्पलेट्स</div>
-        <div className="text-xs text-neutral-500">कोणतेही टेम्पलेट निवडून बायोडाटा तयार करा</div>
-      </div>
-      <div className="flex-1 overflow-y-auto p-4 bg-[#FBF7EA]">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[{ k: 't1', title: 'पारंपरिक सुवर्ण', prem:false },{ k: 't2', title: 'रॉयल मरून', prem:true },{ k: 't3', title: 'मिनिमल मॉडर्न', prem:true }].map(t=>(
-            <div key={t.k} className="bg-white rounded-2xl border border-[#E8D8A8] overflow-hidden">
-              <div className="p-3 flex items-center justify-between border-b border-[#E8D8A8]">
-                <div className="font-semibold text-[#2b2b2b] flex items-center gap-1">{t.title} {t.prem && <Crown className="w-4 h-4 text-[#B8860B]"/>}</div>
-                <Button size="sm" className="rounded-full bg-[#B8860B] hover:bg-[#9c7009] text-white" onClick={()=>onSelect(t.k)}>निवडा</Button>
-              </div>
-              <div className="p-3"><BiodataView data={samplePreviewData()} template={t.k} /></div>
-            </div>
-          ))}
+// ---------- Template Zoom Modal (full A4 preview with zoom in/out) ----------
+const TemplateZoomModal = ({ open, onOpenChange, templateKey, data, onUse }) => {
+  const [scale, setScale] = useState(1)
+  useEffect(() => { if (open) setScale(1) }, [open])
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-5xl w-[95vw] h-[92vh] p-0 flex flex-col">
+        <DialogHeader className="sr-only">
+          <DialogTitle>टेम्पलेट प्रीव्ह्यू</DialogTitle>
+          <DialogDescription>A4 आकारात दाखवले आहे</DialogDescription>
+        </DialogHeader>
+        <div className="p-3 border-b border-[#E8D8A8] bg-white flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="font-bold text-[#7A1F1F]">{templateKey === 't1' ? 'पारंपरिक सुवर्ण' : templateKey === 't2' ? 'रॉयल मरून' : 'मिनिमल मॉडर्न'} — प्रीव्ह्यू</div>
+            <div className="text-xs text-neutral-500">A4 आकारात दाखवले आहे. डाउनलोड नंतर हूबेहूब असेच दिसेल.</div>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button size="sm" variant="outline" className="rounded-full h-9 w-9 p-0 border-[#E8D8A8]" onClick={()=>setScale(s=>Math.max(0.4, +(s-0.15).toFixed(2)))}>−</Button>
+            <span className="text-xs text-neutral-600 w-12 text-center">{Math.round(scale*100)}%</span>
+            <Button size="sm" variant="outline" className="rounded-full h-9 w-9 p-0 border-[#E8D8A8]" onClick={()=>setScale(s=>Math.min(2, +(s+0.15).toFixed(2)))}>+</Button>
+          </div>
+          <Button size="sm" onClick={() => onUse(templateKey)} className="rounded-full bg-[#B8860B] hover:bg-[#9c7009] text-white h-9 ml-2">
+            <Check className="w-4 h-4 mr-1"/> हे टेम्पलेट वापरा
+          </Button>
         </div>
-      </div>
-    </DialogContent>
-  </Dialog>
-)
+        <div className="flex-1 overflow-auto p-4 md:p-8 bg-[#EDE7D3]">
+          <div className="mx-auto" style={{ maxWidth: `${794 * scale}px` }}>
+            <BiodataView data={data} template={templateKey} showWatermark={true} />
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+const TemplatesGallery = ({ open, onOpenChange, onSelect }) => {
+  const [zoomOpen, setZoomOpen] = useState(false)
+  const [zoomKey, setZoomKey] = useState('t1')
+  const openPreview = (k) => { setZoomKey(k); setZoomOpen(true) }
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-6xl w-[95vw] h-[90vh] p-0 flex flex-col">
+        <DialogHeader className="sr-only">
+          <DialogTitle>टेम्पलेट्स</DialogTitle>
+          <DialogDescription>टेम्पलेट निवडा</DialogDescription>
+        </DialogHeader>
+        <div className="p-3 border-b border-[#E8D8A8] bg-white">
+          <div className="font-bold text-[#7A1F1F]">आपले टेम्पलेट निवडा</div>
+          <div className="text-xs text-neutral-500">प्रीव्ह्यू करून पहा किंवा थेट वापरा — सर्व टेम्पलेट्स मोफत प्रीव्ह्यू</div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 bg-[#F5F1E4]">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[{ k: 't1', title: 'पारंपरिक सुवर्ण', sub: 'Traditional Gold' },{ k: 't2', title: 'रॉयल मरून', sub: 'Royal Maroon' },{ k: 't3', title: 'मिनिमल मॉडर्न', sub: 'Minimal Modern' }].map(t=>(
+              <div key={t.k} className="bg-white rounded-2xl border border-[#E8D8A8] overflow-hidden shadow-sm hover:shadow-lg transition-shadow">
+                <div className="p-3 border-b border-[#E8D8A8]">
+                  <div className="font-semibold text-[#2b2b2b]">{t.title}</div>
+                  <div className="text-xs text-neutral-500">{t.sub}</div>
+                </div>
+                <div className="p-3 bg-[#F1EDDF]">
+                  <BiodataView data={samplePreviewData()} template={t.k} showWatermark={true} />
+                </div>
+                <div className="p-3 border-t border-[#E8D8A8] flex gap-2">
+                  <Button size="sm" variant="outline" onClick={()=>openPreview(t.k)} className="flex-1 rounded-full border-[#E8D8A8] text-[#7A1F1F]"><Eye className="w-4 h-4 mr-1"/> प्रीव्ह्यू</Button>
+                  <Button size="sm" onClick={()=>onSelect(t.k)} className="flex-1 rounded-full bg-[#B8860B] hover:bg-[#9c7009] text-white"><Check className="w-4 h-4 mr-1"/> वापरा</Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <TemplateZoomModal open={zoomOpen} onOpenChange={setZoomOpen} templateKey={zoomKey} data={samplePreviewData()} onUse={(k)=>{ setZoomOpen(false); onSelect(k) }} />
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 // ---------- Main App ----------
 const App = () => {
@@ -949,8 +1022,8 @@ const App = () => {
   const [tplOpen, setTplOpen] = useState(false)
   const [premiumOpen, setPremiumOpen] = useState(false)
   const [loginRequiredOpen, setLoginRequiredOpen] = useState(false)
-  const [loginReason, setLoginReason] = useState('')
-  const [editingItem, setEditingItem] = useState(null) // { _id, data, template }
+  const [loginMode, setLoginMode] = useState('download') // 'download' | 'save'
+  const [editingItem, setEditingItem] = useState(null)
 
   const refreshUser = useCallback(async () => {
     try {
@@ -966,7 +1039,6 @@ const App = () => {
     const hash = window.location.hash || ''
     if (hash.startsWith('#session_id=')) {
       const sid = hash.substring('#session_id='.length)
-      // Clean hash immediately
       history.replaceState(null, '', window.location.pathname + window.location.search)
       ;(async () => {
         const r = await api.session(sid)
@@ -974,7 +1046,12 @@ const App = () => {
           setUser(r.user)
           setAuthChecked(true)
           toast.success('स्वागत आहे, ' + (r.user?.name || 'मित्रा') + '!')
-          setView('dashboard')
+          // After login: if there's biodata data in localStorage → go to builder (data auto-restored)
+          // Otherwise → dashboard
+          const hasDraft = (() => { try { const raw = localStorage.getItem('ilb_data'); if (!raw) return false; const j = JSON.parse(raw); return !!(j?.firstName || j?.lastName) } catch { return false } })()
+          setView(hasDraft ? 'builder' : 'dashboard')
+          // If no active subscription, open premium page
+          if (!r.user?.isPremium) setTimeout(() => setPremiumOpen(true), 400)
         } else {
           toast.error('लॉगिन अयशस्वी')
           refreshUser()
@@ -993,7 +1070,7 @@ const App = () => {
   }
 
   const openDashboard = () => {
-    if (!user) { setLoginReason('डॅशबोर्ड पाहण्यासाठी लॉगिन करा'); setLoginRequiredOpen(true); return }
+    if (!user) { setLoginMode('save'); setLoginRequiredOpen(true); return }
     setEditingItem(null); setView('dashboard')
   }
 
@@ -1004,9 +1081,12 @@ const App = () => {
   }
 
   const openPremium = () => {
-    if (!user) { setLoginReason('प्रीमियम खरेदी करण्यासाठी प्रथम लॉगिन करा'); setLoginRequiredOpen(true); return }
+    if (!user) { setLoginMode('download'); setLoginRequiredOpen(true); return }
     setPremiumOpen(true)
   }
+
+  const needLoginForDownload = () => { setLoginMode('download'); setLoginRequiredOpen(true) }
+  const needLoginForSave = () => { setLoginMode('save'); setLoginRequiredOpen(true) }
 
   return (
     <>
@@ -1032,7 +1112,8 @@ const App = () => {
           initialId={editingItem?._id}
           initialTemplate={editingItem?.template}
           onSavedCloud={() => {}}
-          onNeedLogin={(reason)=>{ setLoginReason(reason || ''); setLoginRequiredOpen(true) }}
+          onNeedLoginForSave={needLoginForSave}
+          onNeedLoginForDownload={needLoginForDownload}
           onOpenPremium={openPremium}
           onOpenDashboard={openDashboard}
         />
@@ -1053,9 +1134,9 @@ const App = () => {
         onOpenChange={setPremiumOpen}
         user={user}
         onUnlocked={refreshUser}
-        onNeedLogin={()=>{ setPremiumOpen(false); setLoginReason('प्रीमियम खरेदी करण्यासाठी लॉगिन करा'); setLoginRequiredOpen(true) }}
+        onNeedLogin={()=>{ setPremiumOpen(false); setLoginMode('download'); setLoginRequiredOpen(true) }}
       />
-      <LoginRequiredModal open={loginRequiredOpen} onOpenChange={setLoginRequiredOpen} reason={loginReason} />
+      <LoginRequiredModal open={loginRequiredOpen} onOpenChange={setLoginRequiredOpen} mode={loginMode} />
     </>
   )
 }
