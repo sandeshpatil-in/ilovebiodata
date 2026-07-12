@@ -7,7 +7,8 @@ import { createSession, sessionCookieOptions, SESSION_COOKIE, getCurrentUser, de
 
 export const runtime = 'nodejs'
 
-const PREMIUM_AMOUNT = 9900 // ₹99 in paise
+const PREMIUM_AMOUNT = 4900 // ₹49 in paise
+const PREMIUM_DURATION_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
 
 function rz() {
   return new Razorpay({
@@ -67,7 +68,16 @@ export async function GET(request, { params }) {
 
 function publicUser(u) {
   if (!u) return null
-  return { id: u._id, email: u.email, name: u.name, picture: u.picture, isPremium: !!u.isPremium, premiumUnlockedAt: u.premiumUnlockedAt }
+  const now = Date.now()
+  const exp = u.premiumExpiresAt ? new Date(u.premiumExpiresAt).getTime() : 0
+  const active = !!u.isPremium && (exp === 0 || exp > now) // exp=0 → lifetime grandfathered
+  return {
+    id: u._id, email: u.email, name: u.name, picture: u.picture,
+    isPremium: active,
+    premiumUnlockedAt: u.premiumUnlockedAt,
+    premiumExpiresAt: u.premiumExpiresAt || null,
+    premiumDaysLeft: exp > now ? Math.ceil((exp - now) / (24 * 60 * 60 * 1000)) : (u.isPremium && exp === 0 ? 9999 : 0),
+  }
 }
 
 // POST handler
@@ -193,8 +203,8 @@ export async function POST(request, { params }) {
     const payment = await db.collection('payments').findOne({ userId: user._id, razorpayOrderId: orderId })
     if (!payment) return json({ error: 'Order not found' }, { status: 404 })
     if (payment.status === 'paid') {
-      // already applied
-      await db.collection('users').updateOne({ _id: user._id }, { $set: { isPremium: true } })
+      // already applied - extend expiry
+      await db.collection('users').updateOne({ _id: user._id }, { $set: { isPremium: true, premiumExpiresAt: new Date(Date.now() + PREMIUM_DURATION_MS) } })
       return json({ ok: true, alreadyProcessed: true })
     }
     if (razorpay_order_id !== orderId) return json({ error: 'Order mismatch' }, { status: 400 })
@@ -213,7 +223,7 @@ export async function POST(request, { params }) {
     )
     await db.collection('users').updateOne(
       { _id: user._id },
-      { $set: { isPremium: true, premiumUnlockedAt: new Date(), premiumSource: 'razorpay', razorpayPaymentId: razorpay_payment_id } }
+      { $set: { isPremium: true, premiumUnlockedAt: new Date(), premiumExpiresAt: new Date(Date.now() + PREMIUM_DURATION_MS), premiumSource: 'razorpay', razorpayPaymentId: razorpay_payment_id } }
     )
     return json({ ok: true })
   }

@@ -235,7 +235,7 @@ const Landing = ({ onStart, onGoTemplates, user, onLogout, onDashboard, onUnlock
               <span className={cx("text-xs px-2 py-1 rounded-full", t.premium ? "bg-[#7A1F1F] text-white" : "bg-[#FDF7E5] text-[#7A1F1F]")}>{t.premium ? 'प्रीमियम' : 'मोफत'}</span>
             </div>
             <div className="p-3 bg-[#FBF7EA]">
-              <div className="scale-[0.95] origin-top">
+              <div className="origin-top">
                 <BiodataView template={t.key} data={samplePreviewData()} />
               </div>
             </div>
@@ -532,20 +532,20 @@ const PremiumModal = ({ open, onOpenChange, user, onUnlocked, onNeedLogin }) => 
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="text-[#7A1F1F] flex items-center gap-2"><Crown className="w-5 h-5 text-[#B8860B]"/> प्रीमियम अनलॉक</DialogTitle>
-          <DialogDescription>सर्व प्रीमियम टेम्पलेट्स आयुष्यभरासाठी अनलॉक करा</DialogDescription>
+          <DialogDescription>१ महिन्यासाठी सर्व टेम्पलेट्स + Cloud सेव्ह + अमर्यादित डाउनलोड</DialogDescription>
         </DialogHeader>
         <div className="rounded-2xl border border-[#E8D8A8] bg-[#FFFDF5] p-4">
           <div className="flex items-baseline gap-2">
             <div className="text-4xl font-extrabold text-gold-gradient">₹{PREMIUM_PRICE}</div>
-            <div className="text-neutral-500 text-sm line-through">₹299</div>
-            <span className="ml-auto text-xs px-2 py-1 rounded-full bg-[#7A1F1F] text-white">Limited</span>
+            <div className="text-sm text-neutral-600">/ महिना</div>
+            <span className="ml-auto text-xs px-2 py-1 rounded-full bg-[#7A1F1F] text-white">३० दिवस</span>
           </div>
           <ul className="mt-3 space-y-2 text-sm text-[#333]">
-            <li className="flex items-center gap-2"><Check className="w-4 h-4 text-[#B8860B]"/> रॉयल मरून टेम्पलेट</li>
-            <li className="flex items-center gap-2"><Check className="w-4 h-4 text-[#B8860B]"/> मिनिमल मॉडर्न टेम्पलेट</li>
-            <li className="flex items-center gap-2"><Check className="w-4 h-4 text-[#B8860B]"/> HD PDF डाउनलोड</li>
-            <li className="flex items-center gap-2"><Check className="w-4 h-4 text-[#B8860B]"/> Cloud Save + Dashboard</li>
-            <li className="flex items-center gap-2"><Check className="w-4 h-4 text-[#B8860B]"/> आयुष्यभर वापर, एकदा pay</li>
+            <li className="flex items-center gap-2"><Check className="w-4 h-4 text-[#B8860B]"/> सर्व टेम्पलेट्स डाउनलोड (सुवर्ण, मरून, मिनिमल)</li>
+            <li className="flex items-center gap-2"><Check className="w-4 h-4 text-[#B8860B]"/> १ महिना बायोडाटा एडिट व डाउनलोड</li>
+            <li className="flex items-center gap-2"><Check className="w-4 h-4 text-[#B8860B]"/> Account मध्ये बायोडाटा सेव्ह</li>
+            <li className="flex items-center gap-2"><Check className="w-4 h-4 text-[#B8860B]"/> High Quality A4 PDF (Print Ready)</li>
+            <li className="flex items-center gap-2"><Check className="w-4 h-4 text-[#B8860B]"/> UPI, Card, Netbanking</li>
           </ul>
         </div>
         <DialogFooter>
@@ -587,6 +587,7 @@ const Builder = ({ onBack, user, initialData, initialId, initialTemplate, onSave
   const [downloading, setDownloading] = useState(false)
   const [savingCloud, setSavingCloud] = useState(false)
   const bioRef = useRef(null)
+  const printRef = useRef(null)
 
   useEffect(() => {
     if (initialData) return // came from dashboard - don't overwrite
@@ -625,32 +626,46 @@ const Builder = ({ onBack, user, initialData, initialId, initialTemplate, onSave
       setDownloading(true)
       const html2canvas = (await import('html2canvas')).default
       const { jsPDF } = await import('jspdf')
-      const node = bioRef.current
+      const node = printRef.current
       if (!node) return
+      // Wait for fonts + layout
       if (document.fonts?.ready) { try { await document.fonts.ready } catch {} }
-      const canvas = await html2canvas(node, { scale: 2, useCORS: true, backgroundColor: '#FFFFFF', logging: false })
+      await new Promise(r => setTimeout(r, 150))
+      // High-quality capture at 2x scale (≈ 150 DPI print equivalent for A4)
+      const canvas = await html2canvas(node, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#FFFFFF',
+        logging: false,
+        windowWidth: 794,
+        width: 794,
+      })
       const imgData = canvas.toDataURL('image/jpeg', 0.95)
-      const pdf = new jsPDF('p', 'mm', 'a4')
-      const pdfW = pdf.internal.pageSize.getWidth()
-      const pdfH = pdf.internal.pageSize.getHeight()
+      // A4 portrait: 210mm × 297mm
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true })
+      const pdfW = 210
+      const pdfH = 297
       const imgW = pdfW
       const imgH = (canvas.height * imgW) / canvas.width
-      if (imgH <= pdfH) {
-        pdf.addImage(imgData, 'JPEG', 0, 0, imgW, imgH)
+      if (imgH <= pdfH + 0.5) {
+        // Single page - top aligned
+        pdf.addImage(imgData, 'JPEG', 0, 0, imgW, imgH, undefined, 'FAST')
       } else {
-        let heightLeft = imgH; let position = 0
-        pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH)
+        // Multi-page: tile the tall image
+        let heightLeft = imgH
+        let position = 0
+        pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH, undefined, 'FAST')
         heightLeft -= pdfH
         while (heightLeft > 0) {
           position = heightLeft - imgH
           pdf.addPage()
-          pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH)
+          pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH, undefined, 'FAST')
           heightLeft -= pdfH
         }
       }
       const nameForFile = [data.firstName, data.lastName].filter(Boolean).join('_') || 'biodata'
-      pdf.save(`${nameForFile}_biodata.pdf`)
-      toast.success('PDF डाउनलोड झाला')
+      pdf.save(`${nameForFile}_biodata_A4.pdf`)
+      toast.success('A4 PDF डाउनलोड झाला ✓')
     } catch (e) {
       console.error(e); toast.error('PDF तयार करताना अडचण आली')
     } finally { setDownloading(false) }
@@ -808,7 +823,7 @@ const Builder = ({ onBack, user, initialData, initialId, initialTemplate, onSave
             </div>
           </div>
           <div className="flex-1 overflow-y-auto p-3 md:p-6 bg-[#FBF7EA]">
-            <div className="max-w-3xl mx-auto">
+            <div className="mx-auto" style={{ width: '794px', maxWidth: '100%' }}>
               <div ref={bioRef} className="bg-white">
                 <BiodataView data={data} template={template} />
               </div>
@@ -816,6 +831,11 @@ const Builder = ({ onBack, user, initialData, initialId, initialTemplate, onSave
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Hidden off-screen A4-width container used ONLY for high-quality PDF capture */}
+      <div ref={printRef} aria-hidden="true" style={{ position: 'fixed', left: '-10000px', top: 0, width: '794px', pointerEvents: 'none', background: '#FFFFFF' }}>
+        <BiodataView data={data} template={template} />
+      </div>
     </div>
   )
 }
@@ -856,7 +876,7 @@ const Dashboard = ({ user, onBack, onEdit, onNew, onLogout, onUnlock }) => {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-[#2b2b2b]">नमस्कार, {user?.name || 'मित्रा'}!</h1>
-            <p className="text-neutral-600 text-sm">तुमचे सर्व बायोडाटे इथे आहेत {user?.isPremium && <span className="text-[#B8860B] font-semibold ml-1">• प्रीमियम सदस्य 👑</span>}</p>
+            <p className="text-neutral-600 text-sm">तुमचे सर्व बायोडाटे इथे आहेत {user?.isPremium && <span className="text-[#B8860B] font-semibold ml-1">• प्रीमियम {user.premiumDaysLeft && user.premiumDaysLeft < 9999 ? `(${user.premiumDaysLeft} दिवस शिल्लक)` : 'सदस्य'} 👑</span>}</p>
           </div>
           <Button onClick={onNew} className="rounded-full bg-[#B8860B] hover:bg-[#9c7009] text-white"><Plus className="w-4 h-4 mr-1"/> नवीन</Button>
         </div>
@@ -880,7 +900,7 @@ const Dashboard = ({ user, onBack, onEdit, onNew, onLogout, onUnlock }) => {
                   <span className="text-xs px-2 py-1 rounded-full bg-[#FDF7E5] text-[#7A1F1F]">{it.template === 't1' ? 'सुवर्ण' : it.template === 't2' ? 'मरून' : 'मिनिमल'}</span>
                 </div>
                 <div className="p-3 bg-[#FBF7EA]">
-                  <div className="scale-[0.85] origin-top pointer-events-none max-h-[320px] overflow-hidden">
+                  <div className="origin-top pointer-events-none max-h-[420px] overflow-hidden">
                     <BiodataView data={it.data} template={it.template} />
                   </div>
                 </div>
