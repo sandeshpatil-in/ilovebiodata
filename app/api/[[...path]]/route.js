@@ -3,7 +3,7 @@ import crypto from 'crypto'
 import Razorpay from 'razorpay'
 import { v4 as uuidv4 } from 'uuid'
 import { getDb } from '@/lib/mongodb'
-import { createSession, sessionCookieOptions, SESSION_COOKIE, getCurrentUser, destroySession } from '@/lib/auth'
+import { getCurrentUser } from '@/lib/auth'
 
 export const runtime = 'nodejs'
 
@@ -85,43 +85,6 @@ export async function POST(request, { params }) {
   const { path = [] } = (await params) || {}
   const route = path.join('/')
   const body = await readBody(request)
-
-  // ---------- AUTH ----------
-  if (route === 'auth/session') {
-    // Exchange Emergent session_id for user data via Emergent API, then create app session
-    const sessionId = body.session_id
-    if (!sessionId) return json({ error: 'session_id required' }, { status: 400 })
-    try {
-      const res = await fetch(process.env.EMERGENT_AUTH_API, {
-        headers: { 'X-Session-ID': sessionId },
-      })
-      if (!res.ok) return json({ error: 'Invalid Emergent session' }, { status: 401 })
-      const emergent = await res.json() // { id, email, name, picture, session_token }
-      if (!emergent?.email) return json({ error: 'Invalid Emergent payload' }, { status: 401 })
-
-      const { token, expiresAt, user } = await createSession({
-        id: emergent.id,
-        email: emergent.email,
-        name: emergent.name,
-        picture: emergent.picture,
-      })
-      const resp = json({ ok: true, user: publicUser(user) })
-      resp.cookies.set(SESSION_COOKIE, token, sessionCookieOptions(expiresAt))
-      return resp
-    } catch (e) {
-      console.error('auth/session error', e)
-      return json({ error: 'Auth failed' }, { status: 500 })
-    }
-  }
-
-  if (route === 'auth/logout') {
-    const c = request.cookies
-    const token = c.get(SESSION_COOKIE)?.value
-    await destroySession(token)
-    const resp = json({ ok: true })
-    resp.cookies.delete(SESSION_COOKIE)
-    return resp
-  }
 
   // ---------- BIODATAS ----------
   if (route === 'biodatas') {

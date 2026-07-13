@@ -15,6 +15,7 @@ import { ChevronLeft, ChevronRight, Download, Eye, Heart, Plus, Sparkles, Trash2
 import BiodataView from '@/components/biodata/BiodataView'
 import GodIcon from '@/components/biodata/GodIcon'
 import { motion, AnimatePresence } from 'framer-motion'
+import { signIn, signOut } from 'next-auth/react'
 
 // ---------- Constants (Marathi) ----------
 const GODS = [
@@ -108,15 +109,12 @@ const samplePreviewData = () => ({
 
 // ---------- Auth helper ----------
 const beginGoogleLogin = () => {
-  const redirect = window.location.origin + '/'
-  const url = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirect)}`
-  window.location.href = url
+  signIn('google', { callbackUrl: '/?login=true' })
 }
 
 const api = {
   me: () => fetch('/api/auth/me', { credentials: 'include' }).then(r => r.json()),
-  session: (session_id) => fetch('/api/auth/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id }), credentials: 'include' }).then(r => r.json()),
-  logout: () => fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).then(r => r.json()),
+  logout: () => signOut({ redirect: false }),
   listBiodatas: () => fetch('/api/biodatas', { credentials: 'include' }).then(r => r.json()),
   getBiodata: (id) => fetch('/api/biodatas/' + id, { credentials: 'include' }).then(r => r.json()),
   saveBiodata: (payload) => fetch('/api/biodatas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), credentials: 'include' }).then(r => r.json()),
@@ -1033,28 +1031,29 @@ const App = () => {
     finally { setAuthChecked(true) }
   }, [])
 
-  // Handle Emergent auth callback (URL hash: #session_id=...)
+  // Handle Auth.js login callback (?login=true in query parameters)
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const hash = window.location.hash || ''
-    if (hash.startsWith('#session_id=')) {
-      const sid = hash.substring('#session_id='.length)
-      history.replaceState(null, '', window.location.pathname + window.location.search)
+    const urlParams = new URLSearchParams(window.location.search)
+    const justLoggedIn = urlParams.get('login') === 'true'
+    if (justLoggedIn) {
+      const newUrl = window.location.pathname + window.location.search.replace(/[?&]login=true/, '').replace(/^&/, '?')
+      history.replaceState(null, '', newUrl)
+      
       ;(async () => {
-        const r = await api.session(sid)
-        if (r.ok) {
-          setUser(r.user)
+        try {
+          const r = await api.me()
+          setUser(r.user || null)
+          if (r.user) {
+            toast.success('स्वागत आहे, ' + (r.user?.name || 'मित्रा') + '!')
+            const hasDraft = (() => { try { const raw = localStorage.getItem('ilb_data'); if (!raw) return false; const j = JSON.parse(raw); return !!(j?.firstName || j?.lastName) } catch { return false } })()
+            setView(hasDraft ? 'builder' : 'dashboard')
+            if (!r.user?.isPremium) setTimeout(() => setPremiumOpen(true), 400)
+          }
+        } catch {
+          setUser(null)
+        } finally {
           setAuthChecked(true)
-          toast.success('स्वागत आहे, ' + (r.user?.name || 'मित्रा') + '!')
-          // After login: if there's biodata data in localStorage → go to builder (data auto-restored)
-          // Otherwise → dashboard
-          const hasDraft = (() => { try { const raw = localStorage.getItem('ilb_data'); if (!raw) return false; const j = JSON.parse(raw); return !!(j?.firstName || j?.lastName) } catch { return false } })()
-          setView(hasDraft ? 'builder' : 'dashboard')
-          // If no active subscription, open premium page
-          if (!r.user?.isPremium) setTimeout(() => setPremiumOpen(true), 400)
-        } else {
-          toast.error('लॉगिन अयशस्वी')
-          refreshUser()
         }
       })()
     } else {
