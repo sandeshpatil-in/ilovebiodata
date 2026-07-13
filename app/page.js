@@ -113,7 +113,7 @@ const beginGoogleLogin = () => {
 }
 
 const api = {
-  me: () => fetch('/api/auth/me', { credentials: 'include' }).then(r => r.json()),
+  me: () => fetch('/api/me', { credentials: 'include' }).then(r => r.json()),
   logout: () => signOut({ redirect: false }),
   listBiodatas: () => fetch('/api/biodatas', { credentials: 'include' }).then(r => r.json()),
   getBiodata: (id) => fetch('/api/biodatas/' + id, { credentials: 'include' }).then(r => r.json()),

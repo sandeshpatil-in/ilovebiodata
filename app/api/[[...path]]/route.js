@@ -30,7 +30,7 @@ export async function GET(request, { params }) {
     return json({ ok: true, service: 'ilovebiodata', ts: Date.now() })
   }
 
-  if (route === 'auth/me') {
+  if (route === 'auth/me' || route === 'me') {
     const user = await getCurrentUser()
     if (!user) return json({ user: null }, { status: 200 })
     return json({ user: publicUser(user) })

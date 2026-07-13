@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv('/app/.env')
 
-BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'https://vivah-bandhpatra.preview.emergentagent.com')
+BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'http://localhost:3000')
 API_URL = f"{BASE_URL}/api"
 MONGO_URL = os.getenv('MONGO_URL', 'mongodb://localhost:27017')
 DB_NAME = os.getenv('DB_NAME', 'ilovebiodata')
