@@ -1,6 +1,6 @@
 import NextAuth from "next-auth"
 import authConfig from "./auth.config"
-import { getDb } from "./lib/mongodb"
+import { query } from "./lib/db"
 import { v4 as uuidv4 } from "uuid"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -9,34 +9,33 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async signIn({ user, account }) {
       if (account?.provider === "google") {
         try {
-          const db = await getDb()
-          const now = new Date()
           const email = user.email
           if (!email) return false
 
-          const userDoc = {
-            email: email,
-            name: user.name || "",
-            picture: user.image || "",
-            updatedAt: now,
-          }
+          const name = user.name || ""
+          const image = user.image || ""
+          const googleId = user.id || null
 
-          await db.collection("users").updateOne(
-            { email: email },
-            {
-              $set: userDoc,
-              $setOnInsert: {
-                _id: uuidv4(),
-                isPremium: false,
-                createdAt: now,
-              },
-            },
-            { upsert: true }
-          )
+          // Check if user exists
+          const existing = await query("SELECT * FROM users WHERE email = ?", [email])
+          if (existing && existing.length > 0) {
+            // Update existing user
+            await query(
+              "UPDATE users SET name = ?, image = ?, google_id = ?, updated_at = NOW() WHERE email = ?",
+              [name, image, googleId, email]
+            )
+          } else {
+            // Create new user
+            const userId = uuidv4()
+            await query(
+              "INSERT INTO users (id, google_id, name, email, image, is_premium, premium_expiry, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, NULL, NOW(), NOW())",
+              [userId, googleId, name, email, image]
+            )
+          }
           return true
         } catch (e) {
           console.error("Error saving user to DB during sign in", e)
-          return false
+          return true
         }
       }
       return true
@@ -44,12 +43,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token }) {
       if (token.email) {
         try {
-          const db = await getDb()
-          const dbUser = await db.collection("users").findOne({ email: token.email })
-          if (dbUser) {
-            token.id = dbUser._id
-            token.isPremium = dbUser.isPremium
-            token.picture = dbUser.picture
+          const rows = await query("SELECT * FROM users WHERE email = ?", [token.email])
+          if (rows && rows.length > 0) {
+            const dbUser = rows[0]
+            token.id = dbUser.id
+            token.isPremium = Boolean(dbUser.is_premium)
+            token.picture = dbUser.image
           }
         } catch (e) {
           console.error("Error fetching user in jwt callback", e)
