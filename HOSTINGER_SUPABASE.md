@@ -1,56 +1,42 @@
-# Hostinger + Supabase setup
+# Hostinger + Supabase setup (fixes Google Access Denied)
 
-Use Hostinger's Supabase database option (not MySQL or MongoDB).
+Google login fails with **Access Denied** when Auth.js cannot save the user
+into Supabase. That is a database permission/setup problem, not a Google OAuth
+problem.
 
-## 1. Create / connect Supabase
+## Final fix checklist
 
-1. In Hostinger Node.js settings, choose the Supabase connect option
-   (or create a project at supabase.com).
-2. Prefer Hostinger’s Database Connect wizard (Essentials → Database →
-   Connect → Supabase). It injects `SUPABASE_URL` and the API key on redeploy.
-3. Open Supabase → SQL Editor and run:
-   `migrations/001_supabase_schema.sql`
-4. Keep root `db.js` in the repo. Hostinger uses it with the `users` table to
-   verify the Supabase connection.
-
-## 2. Hostinger environment variables
-
-If the wizard did not inject keys, add these in Environment Variables (no quotes):
+1. Hostinger → Node.js → Database → Connect → Supabase (done).
+2. Hostinger Environment Variables must include (NO quotes):
 
 ```env
 SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-SUPABASE_ANON_KEY=your_anon_key
-
+SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
 AUTH_SECRET=long-random-secret
 AUTH_TRUST_HOST=true
 AUTH_URL=https://ilovebiodata.com
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
-
-RAZORPAY_KEY_ID=...
-RAZORPAY_KEY_SECRET=...
-NEXT_PUBLIC_RAZORPAY_KEY_ID=...
 ```
 
-Generate `AUTH_SECRET` once:
+3. In Supabase → SQL Editor, run BOTH files in order:
+   - `migrations/001_supabase_schema.sql`
+   - `migrations/002_hostinger_signin_access.sql`
+4. Rebuild + Restart the Node.js app.
+5. Open `https://ilovebiodata.com/api/health/database`
+   - Must return `"ok": true` and `"database": "connected"`.
+6. Clear site cookies for `ilovebiodata.com`, then try Google login again.
 
-```bash
-openssl rand -base64 32
-```
+## Why MongoDB / MySQL / Supabase all showed Access Denied
 
-Never put `SUPABASE_SERVICE_ROLE_KEY` in any `NEXT_PUBLIC_*` variable.
-Never commit real secrets to GitHub.
+The app blocks Google sign-in when the database write fails:
 
-If Hostinger only injects the anon key, add `SUPABASE_SERVICE_ROLE_KEY`
-manually from Supabase → Project Settings → API. The schema revokes anon
-table access, so the service role key is required for login and saves.
+- MongoDB: `MONGO_URL` missing → Access Denied
+- MySQL: `DB_*` missing/wrong → Access Denied
+- Supabase: tables missing, or anon key blocked by RLS → Access Denied
 
-## 3. Deploy
+## Security note
 
-1. Save environment variables.
-2. Rebuild and restart the Node.js app.
-3. Open `/api/health/database`.
-   Success returns HTTP 200 with `"database": "connected"`.
-
-Google OAuth still uses NextAuth. Supabase is only the database.
+Do not put `SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_ANON_KEY` in any
+`NEXT_PUBLIC_*` variable. The app uses Supabase only on the server.
