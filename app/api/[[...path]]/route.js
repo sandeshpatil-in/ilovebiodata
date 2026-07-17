@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import crypto from 'crypto'
 import Razorpay from 'razorpay'
 import { v4 as uuidv4 } from 'uuid'
-import { assertNoError, getSupabaseAdmin, pingDatabase } from '@/lib/supabase'
+import { assertNoError, getSupabaseAdmin, getSupabaseEnvStatus, pingDatabase } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
 
 export const runtime = 'nodejs'
@@ -47,13 +47,25 @@ export async function GET(request, { params }) {
   }
 
   if (route === 'health/database') {
+    const env = getSupabaseEnvStatus()
     try {
       await pingDatabase()
-      return json({ ok: true, database: 'connected', ts: Date.now() })
+      return json({ ok: true, database: 'connected', ...env, ts: Date.now() })
     } catch (error) {
       console.error('Database health check failed:', error)
       return json(
-        { ok: false, database: 'disconnected', ts: Date.now() },
+        {
+          ok: false,
+          database: 'disconnected',
+          ...env,
+          error: error.message || 'Database request failed',
+          hint: !env.hasUrl
+            ? 'Set SUPABASE_URL in Hostinger environment variables.'
+            : !env.hasServiceRoleKey && !env.hasAnonKey
+              ? 'Set SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY.'
+              : 'Run migrations/001_supabase_schema.sql and migrations/002_hostinger_signin_access.sql in the Supabase SQL Editor.',
+          ts: Date.now(),
+        },
         { status: 503 },
       )
     }

@@ -47,16 +47,14 @@ create table if not exists public.payments (
 create index if not exists payments_user_idx
   on public.payments (user_id);
 
-alter table public.users enable row level security;
-alter table public.biodatas enable row level security;
-alter table public.payments enable row level security;
+alter table public.users disable row level security;
+alter table public.biodatas disable row level security;
+alter table public.payments disable row level security;
 
--- The Next.js server should use SUPABASE_SERVICE_ROLE_KEY, which bypasses RLS.
--- Keep anon/authenticated blocked from direct table access.
-revoke all on table public.users from anon, authenticated;
-revoke all on table public.biodatas from anon, authenticated;
-revoke all on table public.payments from anon, authenticated;
-
-grant all on table public.users to service_role;
-grant all on table public.biodatas to service_role;
-grant all on table public.payments to service_role;
+-- Hostinger usually injects SUPABASE_ANON_KEY for the Node.js app.
+-- The app uses Supabase only on the server (not in the browser), so grant
+-- table access to anon/authenticated/service_role for Hostinger compatibility.
+grant usage on schema public to anon, authenticated, service_role;
+grant select, insert, update, delete on table public.users to anon, authenticated, service_role;
+grant select, insert, update, delete on table public.biodatas to anon, authenticated, service_role;
+grant select, insert, update, delete on table public.payments to anon, authenticated, service_role;

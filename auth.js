@@ -20,7 +20,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           })
           return true
         } catch (e) {
-          console.error("Error saving user to DB during sign in", e)
+          console.error("Error saving user to DB during sign in", {
+            message: e?.message,
+            code: e?.code,
+            details: e?.details,
+            hint: e?.hint,
+          })
+          // Returning false makes Auth.js show "Access Denied".
           return false
         }
       }
