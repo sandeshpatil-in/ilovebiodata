@@ -6,13 +6,16 @@ const supabaseKey =
   process.env.SUPABASE_ANON_KEY ||
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Missing SUPABASE_URL or Supabase API key environment variables');
+let supabase = null;
+
+if (supabaseUrl && supabaseKey) {
+  supabase = createClient(supabaseUrl, supabaseKey);
+  // Hostinger connection probe — uses an existing app table.
+  supabase.from('users').select('*').limit(1);
+} else {
+  console.warn(
+    'db.js: SUPABASE_URL and a Supabase API key are not set yet. Hostinger injects them after Database Connect.',
+  );
 }
-
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-// Hostinger connection probe — uses an existing app table.
-supabase.from('users').select('*').limit(1);
 
 module.exports = supabase;

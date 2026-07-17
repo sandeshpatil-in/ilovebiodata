@@ -42,6 +42,10 @@ openssl rand -base64 32
 Never put `SUPABASE_SERVICE_ROLE_KEY` in any `NEXT_PUBLIC_*` variable.
 Never commit real secrets to GitHub.
 
+If Hostinger only injects the anon key, add `SUPABASE_SERVICE_ROLE_KEY`
+manually from Supabase → Project Settings → API. The schema revokes anon
+table access, so the service role key is required for login and saves.
+
 ## 3. Deploy
 
 1. Save environment variables.

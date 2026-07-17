@@ -51,8 +51,12 @@ alter table public.users enable row level security;
 alter table public.biodatas enable row level security;
 alter table public.payments enable row level security;
 
--- The Next.js server uses SUPABASE_SERVICE_ROLE_KEY, which bypasses RLS.
+-- The Next.js server should use SUPABASE_SERVICE_ROLE_KEY, which bypasses RLS.
 -- Keep anon/authenticated blocked from direct table access.
 revoke all on table public.users from anon, authenticated;
 revoke all on table public.biodatas from anon, authenticated;
 revoke all on table public.payments from anon, authenticated;
+
+grant all on table public.users to service_role;
+grant all on table public.biodatas to service_role;
+grant all on table public.payments to service_role;

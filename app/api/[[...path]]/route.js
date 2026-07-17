@@ -304,6 +304,18 @@ export async function POST(request, { params }) {
       assertNoError(existingError)
       if (!existing) return json({ error: 'Order not found' }, { status: 404 })
       if (existing.status === 'paid') {
+        const { error: ensurePremiumError } = await supabase
+          .from('users')
+          .update({
+            is_premium: true,
+            premium_unlocked_at: now,
+            premium_expires_at: premiumExpiresAt,
+            premium_source: 'razorpay',
+            razorpay_payment_id,
+            updated_at: now,
+          })
+          .eq('id', user._id)
+        assertNoError(ensurePremiumError)
         return json({ ok: true, alreadyProcessed: true })
       }
       return json({ error: 'Payment could not be verified' }, { status: 409 })
