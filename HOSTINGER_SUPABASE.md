@@ -6,19 +6,21 @@ Use Hostinger's Supabase database option (not MySQL or MongoDB).
 
 1. In Hostinger Node.js settings, choose the Supabase connect option
    (or create a project at supabase.com).
-2. Open Supabase → Project Settings → API and copy:
-   - Project URL
-   - `service_role` secret key
+2. Prefer Hostinger’s Database Connect wizard (Essentials → Database →
+   Connect → Supabase). It injects `SUPABASE_URL` and the API key on redeploy.
 3. Open Supabase → SQL Editor and run:
    `migrations/001_supabase_schema.sql`
+4. Keep root `db.js` in the repo. Hostinger uses it with the `users` table to
+   verify the Supabase connection.
 
 ## 2. Hostinger environment variables
 
-Put these in Hostinger Environment Variables (no quotes):
+If the wizard did not inject keys, add these in Environment Variables (no quotes):
 
 ```env
 SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+SUPABASE_ANON_KEY=your_anon_key
 
 AUTH_SECRET=long-random-secret
 AUTH_TRUST_HOST=true
