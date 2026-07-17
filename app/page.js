@@ -15,7 +15,7 @@ import { ChevronLeft, ChevronRight, Download, Eye, Heart, Plus, Sparkles, Trash2
 import BiodataView from '@/components/biodata/BiodataView'
 import GodIcon from '@/components/biodata/GodIcon'
 import { motion, AnimatePresence } from 'framer-motion'
-import { signIn, signOut } from 'next-auth/react'
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 
 // ---------- Constants (Marathi) ----------
 const GODS = [
@@ -108,13 +108,21 @@ const samplePreviewData = () => ({
 })
 
 // ---------- Auth helper ----------
-const beginGoogleLogin = () => {
-  signIn('google', { callbackUrl: '/?login=true' })
-}
-
 const api = {
   me: () => fetch('/api/me', { credentials: 'include' }).then(r => r.json()),
-  logout: () => signOut({ redirect: false }),
+  logout: () => fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).then(r => r.json()),
+  sendOtp: (phone) => fetch('/api/auth/otp/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ phone }),
+  }).then(async (r) => ({ status: r.status, ...(await r.json()) })),
+  verifyOtp: (phone, code) => fetch('/api/auth/otp/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ phone, code }),
+  }).then(async (r) => ({ status: r.status, ...(await r.json()) })),
   listBiodatas: () => fetch('/api/biodatas', { credentials: 'include' }).then(r => r.json()),
   getBiodata: (id) => fetch('/api/biodatas/' + id, { credentials: 'include' }).then(r => r.json()),
   saveBiodata: (payload) => fetch('/api/biodatas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), credentials: 'include' }).then(r => r.json()),
@@ -134,14 +142,15 @@ const loadRazorpayScript = () => new Promise((resolve) => {
 })
 
 // ---------- User avatar + login button ----------
-const UserMenu = ({ user, onLogout, onDashboard, onUnlock }) => {
+const UserMenu = ({ user, onLogin, onLogout, onDashboard, onUnlock }) => {
   if (!user) {
     return (
-      <Button onClick={beginGoogleLogin} variant="outline" className="rounded-full border-[#E8D8A8] text-[#7A1F1F] hover:bg-[#FDF7E5] h-9">
+      <Button onClick={onLogin} variant="outline" className="rounded-full border-[#E8D8A8] text-[#7A1F1F] hover:bg-[#FDF7E5] h-9">
         <LogIn className="w-4 h-4 mr-1"/> लॉगिन
       </Button>
     )
   }
+  const label = user.name || user.phone || 'User'
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -149,14 +158,14 @@ const UserMenu = ({ user, onLogout, onDashboard, onUnlock }) => {
           {user.picture ? (
             <img src={user.picture} alt="" className="w-7 h-7 rounded-full object-cover" />
           ) : (
-            <div className="w-7 h-7 rounded-full bg-[#B8860B] text-white flex items-center justify-center text-xs font-bold">{(user.name||user.email||'U')[0]?.toUpperCase()}</div>
+            <div className="w-7 h-7 rounded-full bg-[#B8860B] text-white flex items-center justify-center text-xs font-bold">{label[0]?.toUpperCase()}</div>
           )}
-          <span className="hidden sm:inline text-sm font-semibold text-[#333] max-w-[110px] truncate">{user.name || user.email}</span>
+          <span className="hidden sm:inline text-sm font-semibold text-[#333] max-w-[110px] truncate">{label}</span>
           {user.isPremium && <Crown className="w-4 h-4 text-[#B8860B]" />}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel className="text-xs text-neutral-500">{user.email}</DropdownMenuLabel>
+        <DropdownMenuLabel className="text-xs text-neutral-500">{user.phone || user.email}</DropdownMenuLabel>
         <DropdownMenuItem onClick={onDashboard} className="cursor-pointer"><LayoutDashboard className="w-4 h-4 mr-2"/> माझे बायोडाटे</DropdownMenuItem>
         {!user.isPremium && <DropdownMenuItem onClick={onUnlock} className="cursor-pointer text-[#B8860B] font-semibold"><Crown className="w-4 h-4 mr-2"/> प्रीमियम अनलॉक</DropdownMenuItem>}
         <DropdownMenuSeparator />
@@ -167,7 +176,7 @@ const UserMenu = ({ user, onLogout, onDashboard, onUnlock }) => {
 }
 
 // ---------- Landing ----------
-const Landing = ({ onStart, onGoTemplates, user, onLogout, onDashboard, onUnlock }) => (
+const Landing = ({ onStart, onGoTemplates, user, onLogin, onLogout, onDashboard, onUnlock }) => (
   <div className="min-h-screen bg-white font-marathi">
     <nav className="sticky top-0 z-30 bg-white/85 backdrop-blur border-b border-[#E8D8A8]">
       <div className="mx-auto max-w-6xl px-4 h-14 flex items-center justify-between">
@@ -178,7 +187,7 @@ const Landing = ({ onStart, onGoTemplates, user, onLogout, onDashboard, onUnlock
         <div className="flex items-center gap-2">
           <Button variant="ghost" onClick={onGoTemplates} className="text-[#7A1F1F] font-semibold hidden sm:inline-flex">टेम्पलेट्स</Button>
           <Button onClick={onStart} className="bg-[#B8860B] hover:bg-[#9c7009] text-white rounded-full px-4 hidden sm:inline-flex">सुरू करा</Button>
-          <UserMenu user={user} onLogout={onLogout} onDashboard={onDashboard} onUnlock={onUnlock} />
+          <UserMenu user={user} onLogin={onLogin} onLogout={onLogout} onDashboard={onDashboard} onUnlock={onUnlock} />
         </div>
       </div>
     </nav>
@@ -496,7 +505,11 @@ const PremiumModal = ({ open, onOpenChange, user, onUnlocked, onNeedLogin }) => 
         name: 'ILoveBiodata Premium',
         description: 'Lifetime Premium Templates Access',
         order_id: order.orderId,
-        prefill: { name: order.userName || user.name || '', email: order.userEmail || user.email || '' },
+        prefill: {
+          name: order.userName || user.name || '',
+          contact: order.userPhone || user.phone || '',
+          email: order.userEmail || user.email || '',
+        },
         theme: { color: '#B8860B' },
         handler: async (response) => {
           try {
@@ -555,9 +568,55 @@ const PremiumModal = ({ open, onOpenChange, user, onUnlocked, onNeedLogin }) => 
   )
 }
 
-// ---------- Login required modal (for download/save) ----------
-const LoginRequiredModal = ({ open, onOpenChange, mode = 'download' }) => {
+// ---------- Login required modal (mobile OTP) ----------
+const LoginRequiredModal = ({ open, onOpenChange, mode = 'download', onLoggedIn }) => {
   const isDownload = mode === 'download'
+  const [step, setStep] = useState('phone') // phone | otp
+  const [phone, setPhone] = useState('')
+  const [otp, setOtp] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [devCode, setDevCode] = useState('')
+
+  useEffect(() => {
+    if (!open) {
+      setStep('phone')
+      setPhone('')
+      setOtp('')
+      setLoading(false)
+      setDevCode('')
+    }
+  }, [open])
+
+  const sendOtp = async () => {
+    setLoading(true)
+    try {
+      const r = await api.sendOtp(phone)
+      if (!r.ok) throw new Error(r.error || 'OTP पाठवता आले नाही')
+      if (r.devCode) setDevCode(r.devCode)
+      setStep('otp')
+      toast.success('OTP मोबाईलवर पाठवला')
+    } catch (e) {
+      toast.error(e.message || 'OTP पाठवताना समस्या')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const verifyOtp = async () => {
+    setLoading(true)
+    try {
+      const r = await api.verifyOtp(phone, otp)
+      if (!r.ok) throw new Error(r.error || 'OTP चुकीचा आहे')
+      toast.success('लॉगिन यशस्वी!')
+      onOpenChange(false)
+      onLoggedIn?.(r.user)
+    } catch (e) {
+      toast.error(e.message || 'OTP verify अयशस्वी')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
@@ -566,20 +625,59 @@ const LoginRequiredModal = ({ open, onOpenChange, mode = 'download' }) => {
             {isDownload ? 'बायोडाटा डाउनलोड करण्यासाठी लॉगिन करा' : 'बायोडाटा सेव्ह करण्यासाठी लॉगिन करा'}
           </DialogTitle>
           <DialogDescription className="text-[15px] leading-relaxed">
-            तुमचा बायोडाटा तयार झाला आहे. PDF डाउनलोड करण्यासाठी किंवा सेव्ह करण्यासाठी प्रथम खाते तयार करा.
+            मोबाईल OTP ने जलद लॉगिन / साइनअप करा. Google लॉगिन बंद करण्यात आले आहे.
           </DialogDescription>
         </DialogHeader>
-        <div className="rounded-xl bg-[#FFFDF5] border border-[#E8D8A8] p-3 text-sm text-[#333]">
-          <div className="flex items-center gap-2"><Check className="w-4 h-4 text-[#B8860B]"/> तुमची भरलेली माहिती सुरक्षित राहील</div>
-          <div className="flex items-center gap-2"><Check className="w-4 h-4 text-[#B8860B]"/> लॉगिननंतर तीच बायोडाटा पुन्हा दिसेल</div>
-          <div className="flex items-center gap-2"><Check className="w-4 h-4 text-[#B8860B]"/> Google द्वारे १ क्लिकमध्ये लॉगिन</div>
-        </div>
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={()=>onOpenChange(false)} className="rounded-full">नंतर</Button>
-          <Button onClick={beginGoogleLogin} className="rounded-full bg-[#B8860B] hover:bg-[#9c7009] text-white h-11 px-5 font-semibold">
-            <LogIn className="w-4 h-4 mr-1"/> लॉगिन / साइनअप
-          </Button>
-        </DialogFooter>
+
+        {step === 'phone' ? (
+          <div className="space-y-3">
+            <Field label="मोबाईल नंबर">
+              <div className="flex gap-2">
+                <div className="h-11 px-3 rounded-full border border-[#E8D8A8] bg-[#FFFDF5] flex items-center text-sm text-[#7A1F1F]">+91</div>
+                <RoundInput
+                  value={phone}
+                  onChange={(e)=>setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="9876543210"
+                  inputMode="numeric"
+                />
+              </div>
+            </Field>
+            <div className="rounded-xl bg-[#FFFDF5] border border-[#E8D8A8] p-3 text-sm text-[#333] space-y-1">
+              <div className="flex items-center gap-2"><Check className="w-4 h-4 text-[#B8860B]"/> १० अंकी मोबाईल नंबर टाका</div>
+              <div className="flex items-center gap-2"><Check className="w-4 h-4 text-[#B8860B]"/> OTP ने सुरक्षित लॉगिन</div>
+              <div className="flex items-center gap-2"><Check className="w-4 h-4 text-[#B8860B]"/> तुमचा बायोडाटा सेव्ह राहील</div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={()=>onOpenChange(false)} className="rounded-full">नंतर</Button>
+              <Button onClick={sendOtp} disabled={loading || phone.length !== 10} className="rounded-full bg-[#B8860B] hover:bg-[#9c7009] text-white h-11 px-5 font-semibold">
+                {loading ? <><Loader2 className="w-4 h-4 mr-1 animate-spin"/> पाठवत आहे...</> : 'OTP पाठवा'}
+              </Button>
+            </DialogFooter>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="text-sm text-[#333]">OTP पाठवला: <span className="font-semibold">+91 {phone}</span></div>
+            <Field label="६ अंकी OTP">
+              <InputOTP maxLength={6} value={otp} onChange={setOtp}>
+                <InputOTPGroup>
+                  <InputOTPSlot index={0} />
+                  <InputOTPSlot index={1} />
+                  <InputOTPSlot index={2} />
+                  <InputOTPSlot index={3} />
+                  <InputOTPSlot index={4} />
+                  <InputOTPSlot index={5} />
+                </InputOTPGroup>
+              </InputOTP>
+            </Field>
+            {devCode ? <div className="text-xs text-[#7A1F1F] bg-[#FFFDF5] border border-[#E8D8A8] rounded-lg p-2">Dev OTP: <b>{devCode}</b></div> : null}
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={()=>setStep('phone')} className="rounded-full">मागे</Button>
+              <Button onClick={verifyOtp} disabled={loading || otp.length !== 6} className="rounded-full bg-[#B8860B] hover:bg-[#9c7009] text-white h-11 px-5 font-semibold">
+                {loading ? <><Loader2 className="w-4 h-4 mr-1 animate-spin"/> तपासत आहे...</> : 'OTP Verify'}
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   )
@@ -835,7 +933,7 @@ const Builder = ({ onBack, user, initialData, initialId, initialTemplate, onSave
 }
 
 // ---------- Dashboard ----------
-const Dashboard = ({ user, onBack, onEdit, onNew, onLogout, onUnlock }) => {
+const Dashboard = ({ user, onBack, onEdit, onNew, onLogout, onUnlock, onLogin }) => {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -862,7 +960,7 @@ const Dashboard = ({ user, onBack, onEdit, onNew, onLogout, onUnlock }) => {
           <div className="flex-1">
             <div className="font-baloo font-bold text-lg text-gold-gradient">माझे बायोडाटे</div>
           </div>
-          <UserMenu user={user} onLogout={onLogout} onDashboard={()=>{}} onUnlock={onUnlock} />
+          <UserMenu user={user} onLogin={onLogin} onLogout={onLogout} onDashboard={()=>{}} onUnlock={onUnlock} />
         </div>
       </nav>
 
@@ -1031,34 +1129,9 @@ const App = () => {
     finally { setAuthChecked(true) }
   }, [])
 
-  // Handle Auth.js login callback (?login=true in query parameters)
+  // Load current session user
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    const urlParams = new URLSearchParams(window.location.search)
-    const justLoggedIn = urlParams.get('login') === 'true'
-    if (justLoggedIn) {
-      const newUrl = window.location.pathname + window.location.search.replace(/[?&]login=true/, '').replace(/^&/, '?')
-      history.replaceState(null, '', newUrl)
-      
-      ;(async () => {
-        try {
-          const r = await api.me()
-          setUser(r.user || null)
-          if (r.user) {
-            toast.success('स्वागत आहे, ' + (r.user?.name || 'मित्रा') + '!')
-            const hasDraft = (() => { try { const raw = localStorage.getItem('ilb_data'); if (!raw) return false; const j = JSON.parse(raw); return !!(j?.firstName || j?.lastName) } catch { return false } })()
-            setView(hasDraft ? 'builder' : 'dashboard')
-            if (!r.user?.isPremium) setTimeout(() => setPremiumOpen(true), 400)
-          }
-        } catch {
-          setUser(null)
-        } finally {
-          setAuthChecked(true)
-        }
-      })()
-    } else {
-      refreshUser()
-    }
+    refreshUser()
   }, [refreshUser])
 
   const handleLogout = async () => {
@@ -1068,8 +1141,35 @@ const App = () => {
     toast.success('लॉगआउट झाले')
   }
 
+  const openLogin = (mode = 'save') => {
+    setLoginMode(mode)
+    setLoginRequiredOpen(true)
+  }
+
+  const handleLoggedIn = async (loggedInUser) => {
+    if (loggedInUser) {
+      setUser(loggedInUser)
+      toast.success('स्वागत आहे!')
+      const hasDraft = (() => {
+        try {
+          const raw = localStorage.getItem('ilb_data')
+          if (!raw) return false
+          const j = JSON.parse(raw)
+          return !!(j?.firstName || j?.lastName)
+        } catch {
+          return false
+        }
+      })()
+      setView(hasDraft ? 'builder' : 'dashboard')
+      if (!loggedInUser?.isPremium) setTimeout(() => setPremiumOpen(true), 400)
+      await refreshUser()
+      return
+    }
+    await refreshUser()
+  }
+
   const openDashboard = () => {
-    if (!user) { setLoginMode('save'); setLoginRequiredOpen(true); return }
+    if (!user) { openLogin('save'); return }
     setEditingItem(null); setView('dashboard')
   }
 
@@ -1080,12 +1180,12 @@ const App = () => {
   }
 
   const openPremium = () => {
-    if (!user) { setLoginMode('download'); setLoginRequiredOpen(true); return }
+    if (!user) { openLogin('download'); return }
     setPremiumOpen(true)
   }
 
-  const needLoginForDownload = () => { setLoginMode('download'); setLoginRequiredOpen(true) }
-  const needLoginForSave = () => { setLoginMode('save'); setLoginRequiredOpen(true) }
+  const needLoginForDownload = () => openLogin('download')
+  const needLoginForSave = () => openLogin('save')
 
   return (
     <>
@@ -1096,6 +1196,7 @@ const App = () => {
             onStart={() => startBuilder(null)}
             onGoTemplates={() => setTplOpen(true)}
             user={user}
+            onLogin={() => openLogin('save')}
             onLogout={handleLogout}
             onDashboard={openDashboard}
             onUnlock={openPremium}
@@ -1125,6 +1226,7 @@ const App = () => {
           onNew={() => startBuilder(null)}
           onLogout={handleLogout}
           onUnlock={openPremium}
+          onLogin={() => openLogin('save')}
         />
       )}
 
@@ -1133,9 +1235,14 @@ const App = () => {
         onOpenChange={setPremiumOpen}
         user={user}
         onUnlocked={refreshUser}
-        onNeedLogin={()=>{ setPremiumOpen(false); setLoginMode('download'); setLoginRequiredOpen(true) }}
+        onNeedLogin={()=>{ setPremiumOpen(false); openLogin('download') }}
       />
-      <LoginRequiredModal open={loginRequiredOpen} onOpenChange={setLoginRequiredOpen} mode={loginMode} />
+      <LoginRequiredModal
+        open={loginRequiredOpen}
+        onOpenChange={setLoginRequiredOpen}
+        mode={loginMode}
+        onLoggedIn={handleLoggedIn}
+      />
     </>
   )
 }

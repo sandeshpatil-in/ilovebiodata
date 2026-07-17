@@ -128,7 +128,11 @@ function publicUser(u) {
   const exp = u.premiumExpiresAt ? new Date(u.premiumExpiresAt).getTime() : 0
   const active = !!u.isPremium && (exp === 0 || exp > now) // exp=0 → lifetime grandfathered
   return {
-    id: u._id, email: u.email, name: u.name, picture: u.picture,
+    id: u._id,
+    phone: u.phone || null,
+    email: u.email || null,
+    name: u.name || '',
+    picture: u.picture || null,
     isPremium: active,
     premiumUnlockedAt: u.premiumUnlockedAt,
     premiumExpiresAt: u.premiumExpiresAt || null,
@@ -257,7 +261,8 @@ export async function POST(request, { params }) {
         currency: 'INR',
         keyId: process.env.RAZORPAY_KEY_ID,
         userName: user.name,
-        userEmail: user.email,
+        userEmail: user.email || '',
+        userPhone: user.phone || '',
       })
     } catch (e) {
       console.error('razorpay create-order error', e)

@@ -1,92 +1,48 @@
-# Local development setup
+# Mobile OTP login
 
-Run the app on your computer first. Go live later when login and database work.
+Google login has been removed. Users sign in with a 10-digit Indian mobile
+number and a 6-digit OTP.
 
-## 1. Install
+## Setup
 
-```bash
-git clone https://github.com/sandeshpatil-in/ilovebiodata.git
-cd ilovebiodata
-npm install
-```
-
-## 2. Create `.env.local`
-
-Copy `.env.example`:
-
-```bash
-cp .env.example .env.local
-```
-
-Fill values with **no quotes**:
+1. Run SQL migrations in Supabase SQL Editor (in order):
+   - `migrations/001_supabase_schema.sql`
+   - `migrations/002_hostinger_signin_access.sql`
+   - `migrations/003_phone_otp.sql`
+2. Set env vars from `.env.example`.
+3. For local testing set:
 
 ```env
-SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
-SUPABASE_ANON_KEY=your_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-
-AUTH_SECRET=paste_output_of_openssl_rand_base64_32
-AUTH_TRUST_HOST=true
-AUTH_URL=http://localhost:3000
-
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-
-RAZORPAY_KEY_ID=
-RAZORPAY_KEY_SECRET=
-NEXT_PUBLIC_RAZORPAY_KEY_ID=
+OTP_DEV_MODE=true
+AUTH_SECRET=any-long-random-string
 ```
 
-Generate `AUTH_SECRET`:
-
-```bash
-openssl rand -base64 32
-```
-
-Get Supabase keys from: Supabase → Project Settings → API  
-Get Google keys from: Google Cloud → APIs & Services → Credentials
-
-## 3. Google OAuth local redirect
-
-In Google Cloud OAuth client, add:
-
-- Authorized JavaScript origin: `http://localhost:3000`
-- Authorized redirect URI: `http://localhost:3000/api/auth/callback/google`
-
-## 4. Create Supabase tables
-
-In Supabase → SQL Editor, run in order:
-
-1. `migrations/001_supabase_schema.sql`
-2. `migrations/002_hostinger_signin_access.sql`
-
-## 5. Start locally
+4. Start the app:
 
 ```bash
 npm run dev
 ```
 
-Open:
+5. Open the login modal, enter a mobile number, request OTP.
+   - With `OTP_DEV_MODE=true`, the OTP is returned in the API response and
+     shown in the UI/server logs.
+6. Enter OTP to complete login.
 
-- App: http://localhost:3000
-- Health: http://localhost:3000/api/health
-- Database: http://localhost:3000/api/health/database
+## Production SMS
 
-Database check must return `"ok": true` before testing Google login.
-
-## 6. Go live later
-
-When local login works:
-
-1. Deploy the same `main` branch to Hostinger (or Vercel)
-2. Set the same env vars, but change:
+Set MSG91 credentials:
 
 ```env
-AUTH_URL=https://your-domain.com
+OTP_DEV_MODE=false
+MSG91_AUTH_KEY=...
+MSG91_TEMPLATE_ID=...
 ```
 
-3. Add Google redirect:
+Template must include an `otp` variable.
 
-`https://your-domain.com/api/auth/callback/google`
+## API
 
-4. Rebuild/restart and test `/api/health/database` again
+- `POST /api/auth/otp/send` `{ phone }`
+- `POST /api/auth/otp/verify` `{ phone, code }`
+- `POST /api/auth/logout`
+- `GET /api/me`
