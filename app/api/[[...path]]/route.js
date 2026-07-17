@@ -30,6 +30,20 @@ export async function GET(request, { params }) {
     return json({ ok: true, service: 'ilovebiodata', ts: Date.now() })
   }
 
+  if (route === 'health/database') {
+    try {
+      const db = await getDb()
+      await db.command({ ping: 1 })
+      return json({ ok: true, database: 'connected', ts: Date.now() })
+    } catch (error) {
+      console.error('Database health check failed:', error)
+      return json(
+        { ok: false, database: 'disconnected', ts: Date.now() },
+        { status: 503 },
+      )
+    }
+  }
+
   if (route === 'auth/me' || route === 'me') {
     const user = await getCurrentUser()
     if (!user) return json({ user: null }, { status: 200 })
