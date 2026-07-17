@@ -1,0 +1,14 @@
+CREATE TABLE IF NOT EXISTS biodatas (
+  id CHAR(36) NOT NULL,
+  user_id CHAR(36) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  template VARCHAR(32) NOT NULL DEFAULT 't1',
+  data JSON NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+    ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  KEY biodatas_user_updated_idx (user_id, updated_at),
+  CONSTRAINT biodatas_user_fk
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

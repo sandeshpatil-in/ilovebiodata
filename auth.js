@@ -1,6 +1,6 @@
 import NextAuth from "next-auth"
 import authConfig from "./auth.config"
-import { getDb } from "./lib/mongodb"
+import { findUserByEmail, upsertGoogleUser } from "./lib/users"
 import { v4 as uuidv4 } from "uuid"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -9,30 +9,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async signIn({ user, account }) {
       if (account?.provider === "google") {
         try {
-          const db = await getDb()
-          const now = new Date()
           const email = user.email
           if (!email) return false
 
-          const userDoc = {
-            email: email,
+          await upsertGoogleUser({
+            id: uuidv4(),
+            email,
             name: user.name || "",
             picture: user.image || "",
-            updatedAt: now,
-          }
-
-          await db.collection("users").updateOne(
-            { email: email },
-            {
-              $set: userDoc,
-              $setOnInsert: {
-                _id: uuidv4(),
-                isPremium: false,
-                createdAt: now,
-              },
-            },
-            { upsert: true }
-          )
+          })
           return true
         } catch (e) {
           console.error("Error saving user to DB during sign in", e)
@@ -44,8 +29,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token }) {
       if (token.email) {
         try {
-          const db = await getDb()
-          const dbUser = await db.collection("users").findOne({ email: token.email })
+          const dbUser = await findUserByEmail(token.email)
           if (dbUser) {
             token.id = dbUser._id
             token.isPremium = dbUser.isPremium
