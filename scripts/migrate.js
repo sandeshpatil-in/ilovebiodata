@@ -26,13 +26,6 @@ function databaseConfig() {
   }
 }
 
-function statements(sql) {
-  return sql
-    .split(';')
-    .map((statement) => statement.trim())
-    .filter(Boolean)
-}
-
 async function main() {
   const connection = await mysql.createConnection(databaseConfig())
   let lockAcquired = false
@@ -72,9 +65,10 @@ async function main() {
       if (applied.has(file)) continue
 
       const sql = await fs.readFile(path.join(migrationsDirectory, file), 'utf8')
-      for (const statement of statements(sql)) {
-        await connection.query(statement)
-      }
+      // Each migration file contains one idempotent DDL statement. Keeping one
+      // statement per version makes failed DDL safe to retry on MySQL, where
+      // schema changes auto-commit.
+      await connection.query(sql)
       await connection.execute(
         'INSERT INTO schema_migrations (version) VALUES (?)',
         [file],

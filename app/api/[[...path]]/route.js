@@ -9,6 +9,9 @@ export const runtime = 'nodejs'
 
 const PREMIUM_AMOUNT = 4900 // ₹49 in paise
 const PREMIUM_DURATION_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
+const BIODATA_TEMPLATES = new Set(['t1', 't2', 't3'])
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const MAX_BIODATA_JSON_BYTES = 8 * 1024 * 1024
 
 function rz() {
   return new Razorpay({
@@ -134,13 +137,27 @@ export async function POST(request, { params }) {
     if (!user) return json({ error: 'Unauthorized' }, { status: 401 })
     const now = new Date()
     const id = body.id || uuidv4()
-    const title = (body.data?.firstName || body.data?.lastName) ? `${body.data?.firstName || ''} ${body.data?.lastName || ''}`.trim() : 'नवीन बायोडाटा'
+    if (!UUID_PATTERN.test(id)) {
+      return json({ error: 'Invalid biodata ID' }, { status: 400 })
+    }
+    const template = body.template || 't1'
+    if (!BIODATA_TEMPLATES.has(template)) {
+      return json({ error: 'Invalid template' }, { status: 400 })
+    }
+    const data = body.data || {}
+    const serializedData = JSON.stringify(data)
+    if (Buffer.byteLength(serializedData, 'utf8') > MAX_BIODATA_JSON_BYTES) {
+      return json({ error: 'Biodata is too large' }, { status: 413 })
+    }
+    const title = ((body.data?.firstName || body.data?.lastName)
+      ? `${body.data?.firstName || ''} ${body.data?.lastName || ''}`.trim()
+      : 'नवीन बायोडाटा').slice(0, 255)
     const doc = {
       _id: id,
       userId: user._id,
       title,
-      template: body.template || 't1',
-      data: body.data || {},
+      template,
+      data,
       updatedAt: now,
     }
     const pool = getPool()
@@ -148,7 +165,7 @@ export async function POST(request, { params }) {
       `UPDATE biodatas
        SET title = ?, template = ?, data = ?, updated_at = ?
        WHERE id = ? AND user_id = ?`,
-      [title, doc.template, JSON.stringify(doc.data), now, id, user._id],
+      [title, template, serializedData, now, id, user._id],
     )
 
     if (updated.affectedRows === 0) {
@@ -157,7 +174,7 @@ export async function POST(request, { params }) {
           `INSERT INTO biodatas
              (id, user_id, title, template, data, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [id, user._id, title, doc.template, JSON.stringify(doc.data), now, now],
+          [id, user._id, title, template, serializedData, now, now],
         )
       } catch (error) {
         if (error.code === 'ER_DUP_ENTRY') {

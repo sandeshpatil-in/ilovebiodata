@@ -8,7 +8,7 @@
    certificate.
 4. Create the tables using either option:
    - Run `npm run db:migrate` from the application directory over SSH.
-   - Import `migrations/001_initial_schema.sql` using phpMyAdmin.
+   - Import every file in `migrations/` in numeric order using phpMyAdmin.
 5. Build and restart the application.
 6. Open `/api/health/database`. A successful connection returns HTTP 200 with
    `"database": "connected"`.
