@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import crypto from 'crypto'
 import Razorpay from 'razorpay'
 import { v4 as uuidv4 } from 'uuid'
-import { getDb } from '@/lib/mongodb'
+import { getPool, pingDatabase } from '@/lib/mysql'
 import { getCurrentUser } from '@/lib/auth'
 
 export const runtime = 'nodejs'
@@ -21,6 +21,24 @@ function json(data, init) { return NextResponse.json(data, init) }
 
 async function readBody(req) { try { return await req.json() } catch { return {} } }
 
+function parseJson(value) {
+  if (typeof value !== 'string') return value || {}
+  try { return JSON.parse(value) } catch { return {} }
+}
+
+function toBiodata(row) {
+  if (!row) return null
+  return {
+    _id: row.id,
+    userId: row.user_id,
+    title: row.title,
+    template: row.template,
+    data: parseJson(row.data),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
 // GET handler
 export async function GET(request, { params }) {
   const { path = [] } = (await params) || {}
@@ -32,8 +50,7 @@ export async function GET(request, { params }) {
 
   if (route === 'health/database') {
     try {
-      const db = await getDb()
-      await db.command({ ping: 1 })
+      await pingDatabase()
       return json({ ok: true, database: 'connected', ts: Date.now() })
     } catch (error) {
       console.error('Database health check failed:', error)
@@ -53,17 +70,24 @@ export async function GET(request, { params }) {
   if (route === 'biodatas') {
     const user = await getCurrentUser()
     if (!user) return json({ error: 'Unauthorized' }, { status: 401 })
-    const db = await getDb()
-    const items = await db.collection('biodatas').find({ userId: user._id }).sort({ updatedAt: -1 }).toArray()
-    return json({ items })
+    const [rows] = await getPool().execute(
+      `SELECT id, user_id, title, template, data, created_at, updated_at
+       FROM biodatas WHERE user_id = ? ORDER BY updated_at DESC`,
+      [user._id],
+    )
+    return json({ items: rows.map(toBiodata) })
   }
 
   if (route.startsWith('biodatas/')) {
     const id = route.split('/')[1]
     const user = await getCurrentUser()
     if (!user) return json({ error: 'Unauthorized' }, { status: 401 })
-    const db = await getDb()
-    const doc = await db.collection('biodatas').findOne({ _id: id, userId: user._id })
+    const [rows] = await getPool().execute(
+      `SELECT id, user_id, title, template, data, created_at, updated_at
+       FROM biodatas WHERE id = ? AND user_id = ? LIMIT 1`,
+      [id, user._id],
+    )
+    const doc = toBiodata(rows[0])
     if (!doc) return json({ error: 'Not found' }, { status: 404 })
     return json({ item: doc })
   }
@@ -71,8 +95,12 @@ export async function GET(request, { params }) {
   // Public share view (no auth) — read-only
   if (route.startsWith('share/')) {
     const id = route.split('/')[1]
-    const db = await getDb()
-    const doc = await db.collection('biodatas').findOne({ _id: id })
+    const [rows] = await getPool().execute(
+      `SELECT id, user_id, title, template, data, created_at, updated_at
+       FROM biodatas WHERE id = ? LIMIT 1`,
+      [id],
+    )
+    const doc = toBiodata(rows[0])
     if (!doc) return json({ error: 'Not found' }, { status: 404 })
     return json({ item: doc })
   }
@@ -104,7 +132,6 @@ export async function POST(request, { params }) {
   if (route === 'biodatas') {
     const user = await getCurrentUser()
     if (!user) return json({ error: 'Unauthorized' }, { status: 401 })
-    const db = await getDb()
     const now = new Date()
     const id = body.id || uuidv4()
     const title = (body.data?.firstName || body.data?.lastName) ? `${body.data?.firstName || ''} ${body.data?.lastName || ''}`.trim() : 'नवीन बायोडाटा'
@@ -116,11 +143,29 @@ export async function POST(request, { params }) {
       data: body.data || {},
       updatedAt: now,
     }
-    await db.collection('biodatas').updateOne(
-      { _id: id, userId: user._id },
-      { $set: doc, $setOnInsert: { createdAt: now } },
-      { upsert: true }
+    const pool = getPool()
+    const [updated] = await pool.execute(
+      `UPDATE biodatas
+       SET title = ?, template = ?, data = ?, updated_at = ?
+       WHERE id = ? AND user_id = ?`,
+      [title, doc.template, JSON.stringify(doc.data), now, id, user._id],
     )
+
+    if (updated.affectedRows === 0) {
+      try {
+        await pool.execute(
+          `INSERT INTO biodatas
+             (id, user_id, title, template, data, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [id, user._id, title, doc.template, JSON.stringify(doc.data), now, now],
+        )
+      } catch (error) {
+        if (error.code === 'ER_DUP_ENTRY') {
+          return json({ error: 'Biodata ID already exists' }, { status: 409 })
+        }
+        throw error
+      }
+    }
     return json({ ok: true, id, item: doc })
   }
 
@@ -128,8 +173,10 @@ export async function POST(request, { params }) {
     const id = route.split('/')[1]
     const user = await getCurrentUser()
     if (!user) return json({ error: 'Unauthorized' }, { status: 401 })
-    const db = await getDb()
-    await db.collection('biodatas').deleteOne({ _id: id, userId: user._id })
+    await getPool().execute(
+      'DELETE FROM biodatas WHERE id = ? AND user_id = ?',
+      [id, user._id],
+    )
     return json({ ok: true })
   }
 
@@ -145,16 +192,12 @@ export async function POST(request, { params }) {
         receipt: `p_${shortUid}_${Date.now()}`.slice(0, 40),
         notes: { userId: String(user._id), plan: 'lifetime_premium_templates' },
       })
-      const db = await getDb()
-      await db.collection('payments').insertOne({
-        _id: uuidv4(),
-        userId: user._id,
-        razorpayOrderId: order.id,
-        amount: PREMIUM_AMOUNT,
-        currency: 'INR',
-        status: 'created',
-        createdAt: new Date(),
-      })
+      await getPool().execute(
+        `INSERT INTO payments
+           (id, user_id, razorpay_order_id, amount, currency, status, created_at)
+         VALUES (?, ?, ?, ?, ?, 'created', CURRENT_TIMESTAMP(3))`,
+        [uuidv4(), user._id, order.id, PREMIUM_AMOUNT, 'INR'],
+      )
       return json({
         orderId: order.id,
         amount: PREMIUM_AMOUNT,
@@ -176,33 +219,64 @@ export async function POST(request, { params }) {
     if (!orderId || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return json({ error: 'Missing fields' }, { status: 400 })
     }
-    const db = await getDb()
-    const payment = await db.collection('payments').findOne({ userId: user._id, razorpayOrderId: orderId })
-    if (!payment) return json({ error: 'Order not found' }, { status: 404 })
-    if (payment.status === 'paid') {
-      // already applied - extend expiry
-      await db.collection('users').updateOne({ _id: user._id }, { $set: { isPremium: true, premiumExpiresAt: new Date(Date.now() + PREMIUM_DURATION_MS) } })
-      return json({ ok: true, alreadyProcessed: true })
-    }
     if (razorpay_order_id !== orderId) return json({ error: 'Order mismatch' }, { status: 400 })
 
     const expected = crypto
       .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
       .update(`${orderId}|${razorpay_payment_id}`)
       .digest('hex')
-    if (expected !== razorpay_signature) {
+    const expectedBuffer = Buffer.from(expected, 'hex')
+    const suppliedBuffer = Buffer.from(razorpay_signature, 'hex')
+    if (
+      expectedBuffer.length !== suppliedBuffer.length ||
+      !crypto.timingSafeEqual(expectedBuffer, suppliedBuffer)
+    ) {
       return json({ error: 'Invalid signature' }, { status: 400 })
     }
 
-    await db.collection('payments').updateOne(
-      { razorpayOrderId: orderId },
-      { $set: { status: 'paid', razorpayPaymentId: razorpay_payment_id, razorpaySignature: razorpay_signature, paidAt: new Date() } }
-    )
-    await db.collection('users').updateOne(
-      { _id: user._id },
-      { $set: { isPremium: true, premiumUnlockedAt: new Date(), premiumExpiresAt: new Date(Date.now() + PREMIUM_DURATION_MS), premiumSource: 'razorpay', razorpayPaymentId: razorpay_payment_id } }
-    )
-    return json({ ok: true })
+    const connection = await getPool().getConnection()
+    try {
+      await connection.beginTransaction()
+      const [payments] = await connection.execute(
+        `SELECT id, status FROM payments
+         WHERE user_id = ? AND razorpay_order_id = ? FOR UPDATE`,
+        [user._id, orderId],
+      )
+      const payment = payments[0]
+      if (!payment) {
+        await connection.rollback()
+        return json({ error: 'Order not found' }, { status: 404 })
+      }
+      if (payment.status === 'paid') {
+        await connection.commit()
+        return json({ ok: true, alreadyProcessed: true })
+      }
+
+      const now = new Date()
+      const premiumExpiresAt = new Date(Date.now() + PREMIUM_DURATION_MS)
+      await connection.execute(
+        `UPDATE payments
+         SET status = 'paid', razorpay_payment_id = ?,
+             razorpay_signature = ?, paid_at = ?
+         WHERE id = ?`,
+        [razorpay_payment_id, razorpay_signature, now, payment.id],
+      )
+      await connection.execute(
+        `UPDATE users
+         SET is_premium = TRUE, premium_unlocked_at = ?,
+             premium_expires_at = ?, premium_source = 'razorpay',
+             razorpay_payment_id = ?, updated_at = ?
+         WHERE id = ?`,
+        [now, premiumExpiresAt, razorpay_payment_id, now, user._id],
+      )
+      await connection.commit()
+      return json({ ok: true })
+    } catch (error) {
+      await connection.rollback()
+      throw error
+    } finally {
+      connection.release()
+    }
   }
 
   return json({ error: 'Not found' }, { status: 404 })
@@ -215,8 +289,10 @@ export async function DELETE(request, { params }) {
     const id = route.split('/')[1]
     const user = await getCurrentUser()
     if (!user) return json({ error: 'Unauthorized' }, { status: 401 })
-    const db = await getDb()
-    await db.collection('biodatas').deleteOne({ _id: id, userId: user._id })
+    await getPool().execute(
+      'DELETE FROM biodatas WHERE id = ? AND user_id = ?',
+      [id, user._id],
+    )
     return json({ ok: true })
   }
   return json({ error: 'Not found' }, { status: 404 })
